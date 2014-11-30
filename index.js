@@ -20,6 +20,8 @@ try {
 	NorlitJSCompiler.ScopeAnalysis(ast);
 	ast = NorlitJSCompiler.ASTPass.applyAll(ast);
 	ast = NorlitJSCompiler.ASTPass.apply(ast, minifier.MinifyPass);
+	NorlitJSCompiler.Scope.Obfuscate(ast);
+	NorlitJSCompiler.Scope.Desymbolize(ast);
 	console.log(minifier.minify(ast).str);
 	//console.log(JSON.stringify(ast));
 } catch (e) {

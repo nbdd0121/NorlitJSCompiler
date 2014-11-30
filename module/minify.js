@@ -565,9 +565,6 @@ function minify(ast) {
                 var str = "try " + minify(ast.body).str;
                 if (ast.catch !== undefined) {
                     var param = ast.parameter;
-                    if (param instanceof Object) {
-                        param = param.name;
-                    }
                     str += "catch(" + param + ")" + minify(ast.catch).str;
                 }
                 if (ast.finally !== undefined) {
@@ -649,16 +646,10 @@ function minify(ast) {
             {
                 var str = "function";
                 if (ast.name) {
-                    str += " " + (ast.name instanceof Object ? ast.name.name : ast.name);
+                    str += " " + ast.name;
                 }
                 str += "(";
-                str += ast.parameter.map(function(a) {
-                    if (a instanceof Object) {
-                        return a.name;
-                    } else {
-                        return a;
-                    }
-                }).join(",");
+                str += ast.parameter.join(",");
                 str += "){";
                 str += eliminateSemicolon(generateStmtArray(ast.body));
                 str += "}";
@@ -713,9 +704,6 @@ function minify(ast) {
         case 'VariableDeclarator':
             {
                 var name = ast.name;
-                if (name instanceof Object) {
-                    name = name.name;
-                }
                 if (ast.init !== undefined) {
                     return {
                         str: name + '=' + wrap(minify(ast.init), 'AssignmentExpression').str
@@ -730,17 +718,7 @@ function minify(ast) {
             throw ast;
     }
 }
-var idStart = "_$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-var idPart = "_$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-function variableName(id) {
-    var text = idStart[id % idStart.length];
-    id = Math.floor(id / idStart.length);
-    for (; id; id = Math.floor(id / idPart.length)) {
-        text += idPart[id % idPart.length];
-    }
-    return text;
-}
 
 function wrapWithExprStmt(ast) {
     var replaceWrap = new NorlitJSCompiler.Node('ExpressionStatement');
@@ -759,69 +737,25 @@ function wrapWithBlock(ast) {
 }
 
 exports.MinifyPass = {
-    enter: function(node, parent) {
-        switch (node.type) {
-            case 'Program':
-                {
-                    node.scope.id = 0;
-                    break;
-                }
-            case 'FunctionExpression':
-            case 'FunctionDeclaration':
-                {
-                    var scope = node.scope;
-                    var id = scope.outer.id;
-                    if (scope.optimize) {
-                        for (var i = 0; i < scope.var.length; i++) {
-                            var symbol = scope.var[i];
-                            var varName;
-                            while (scope.outer.isDeclared(varName = variableName(id++)));
-                            symbol.name = varName;
-                        }
-                    }
-                    scope.id = id;
-                    break;
-                }
-            case 'WithStatement':
-                {
-                    node.scope.id = node.scope.outer.id;
-                }
-            case 'TryStatement':
-                {
-                    if (node.scope !== undefined) {
-                        var scope = node.scope;
-                        var id = scope.outer.id;
-                        if (scope.optimize) {
-                            var symbol = scope.symbol;
-                            var varName;
-                            while (scope.outer.isDeclared(varName = variableName(id++)));
-                            symbol.name = varName;
-                            id++;
-                        }
-                        scope.id = id;
-                    }
-                    break;
-                }
-        }
-    },
     leave: function(node, parent) {
         switch (node.type) {
-            case 'ExpressionStatement':
-                {
-                    if (!(node.expression instanceof Object)) {
-                        return new NorlitJSCompiler.Node('EmptyStatement');
-                    }
-                    break;
-                }
             case 'IfStatement':
                 {
                     if (node.false === undefined) {
                         if (node.true.type == 'ExpressionStatement') {
-                            var replace = new NorlitJSCompiler.Node('BinaryExpression');
-                            replace.operator = '&&';
-                            replace.left = node.test;
-                            replace.right = node.true.expression;
-                            return wrapWithExprStmt(replace);
+                            if (node.test.type == 'UnaryExpression' && node.test.operator == '!') {
+                                var replace = new NorlitJSCompiler.Node('BinaryExpression');
+                                replace.operator = '||';
+                                replace.left = node.test.operand;
+                                replace.right = node.true.expression;
+                                return wrapWithExprStmt(replace);
+                            } else {
+                                var replace = new NorlitJSCompiler.Node('BinaryExpression');
+                                replace.operator = '&&';
+                                replace.left = node.test;
+                                replace.right = node.true.expression;
+                                return wrapWithExprStmt(replace);
+                            }
                         }
                     } else {
                         if (node.true.type == 'ExpressionStatement' && node.false.type == 'ExpressionStatement') {
@@ -836,16 +770,10 @@ exports.MinifyPass = {
                 }
             case 'BlockStatement':
                 {
-                    for (var i = 0; i < node.body.length; i++) {
-                        if (node.body[i].type == 'EmptyStatement') {
-                            node.body.splice(i, 1);
-                            i--;
-                        }
-                    }
                     if (node.body.length == 1) {
                         return node.body[0];
                     } else if (node.body.length == 0) {
-                        return new NorlitJSCompiler.Node('EmptyStatement');
+                        return new NorlitJSCompiler.Node.EMPTY;
                     }
                     break;
                 }
@@ -862,19 +790,8 @@ exports.MinifyPass = {
                     }
                     break;
                 }
-            case 'Program':
-                {
-                    for (var i = 0; i < node.body.length; i++) {
-                        if (node.body[i].type == 'EmptyStatement') {
-                            node.body.splice(i, 1);
-                            i--;
-                        }
-                    }
-                    break;
-                }
         }
 
-    },
-    noLiteralVisit: true
+    }
 };
 exports.minify = minify;

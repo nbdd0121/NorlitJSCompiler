@@ -6,7 +6,7 @@ require("./scope/scope");
 global.NorlitJSCompiler.minify = minify.minify;
 global.NorlitJSCompiler.MinifyPass = minify.MinifyPass;
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./compiler.js":3,"./module/minify":5,"./scope/scope":6}],2:[function(require,module,exports){
+},{"./compiler.js":3,"./module/minify":5,"./scope/scope":7}],2:[function(require,module,exports){
 'use strict';
 
 var NorlitJSCompiler = require("../compiler");
@@ -116,12 +116,22 @@ NorlitJSCompiler.ASTPass = (function() {
 })();
 
 require("./const.js");
-},{"./ast/builder":2,"./const.js":4,"./syntax/chartype":7,"./syntax/grammar":8,"./syntax/lex":9,"./visitor.js":10}],4:[function(require,module,exports){
+},{"./ast/builder":2,"./const.js":4,"./syntax/chartype":8,"./syntax/grammar":9,"./syntax/lex":10,"./visitor.js":11}],4:[function(require,module,exports){
 'use strict';
 
 var NorlitJSCompiler = require("./compiler");
 
 var ASTBuilder = NorlitJSCompiler.ASTBuilder;
+
+function removeUselessStatement(body) {
+	for (var i = 0; i < body.length; i++) {
+		if (!body[i].sideEffect) {
+			body.splice(i, 1);
+			i--;
+		}
+	}
+	return body.length != 0;
+}
 
 NorlitJSCompiler.ASTPass.register({
 	leave: function(node, parent) {
@@ -129,9 +139,20 @@ NorlitJSCompiler.ASTPass.register({
 			case 'Symbol':
 			case 'ThisExpression':
 			case 'Constant':
-			case 'FunctionExpression':
 				{
 					node.sideEffect = false;
+					break;
+				}
+			case 'FunctionExpression':
+				{
+					removeUselessStatement(node.body);
+					node.sideEffect = false;
+					break;
+				}
+			case 'FunctionDeclaration':
+				{
+					removeUselessStatement(node.body);
+					node.sideEffect = true;
 					break;
 				}
 			case 'EmptyStatement':
@@ -190,15 +211,10 @@ NorlitJSCompiler.ASTPass.register({
 					}
 					break;
 				}
+			case 'Program':
 			case 'BlockStatement':
 				{
-					for (var i = 0; i < node.body.length; i++) {
-						if (!node.body[i].sideEffect) {
-							node.body.splice(i, 1);
-							i--;
-						}
-					}
-					node.sideEffect = node.body.length != 0;
+					node.sideEffect = removeUselessStatement(node.body);
 					break;
 				}
 			case 'BinaryExpression':
@@ -340,8 +356,7 @@ NorlitJSCompiler.ASTPass.register({
 					break;
 				}
 		}
-	},
-	noLiteralVisit: true
+	}
 });
 },{"./compiler":3}],5:[function(require,module,exports){
 var NorlitJSCompiler = require("../compiler");
@@ -911,9 +926,6 @@ function minify(ast) {
                 var str = "try " + minify(ast.body).str;
                 if (ast.catch !== undefined) {
                     var param = ast.parameter;
-                    if (param instanceof Object) {
-                        param = param.name;
-                    }
                     str += "catch(" + param + ")" + minify(ast.catch).str;
                 }
                 if (ast.finally !== undefined) {
@@ -995,16 +1007,10 @@ function minify(ast) {
             {
                 var str = "function";
                 if (ast.name) {
-                    str += " " + (ast.name instanceof Object ? ast.name.name : ast.name);
+                    str += " " + ast.name;
                 }
                 str += "(";
-                str += ast.parameter.map(function(a) {
-                    if (a instanceof Object) {
-                        return a.name;
-                    } else {
-                        return a;
-                    }
-                }).join(",");
+                str += ast.parameter.join(",");
                 str += "){";
                 str += eliminateSemicolon(generateStmtArray(ast.body));
                 str += "}";
@@ -1059,9 +1065,6 @@ function minify(ast) {
         case 'VariableDeclarator':
             {
                 var name = ast.name;
-                if (name instanceof Object) {
-                    name = name.name;
-                }
                 if (ast.init !== undefined) {
                     return {
                         str: name + '=' + wrap(minify(ast.init), 'AssignmentExpression').str
@@ -1076,17 +1079,7 @@ function minify(ast) {
             throw ast;
     }
 }
-var idStart = "_$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-var idPart = "_$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-function variableName(id) {
-    var text = idStart[id % idStart.length];
-    id = Math.floor(id / idStart.length);
-    for (; id; id = Math.floor(id / idPart.length)) {
-        text += idPart[id % idPart.length];
-    }
-    return text;
-}
 
 function wrapWithExprStmt(ast) {
     var replaceWrap = new NorlitJSCompiler.Node('ExpressionStatement');
@@ -1105,69 +1098,25 @@ function wrapWithBlock(ast) {
 }
 
 exports.MinifyPass = {
-    enter: function(node, parent) {
-        switch (node.type) {
-            case 'Program':
-                {
-                    node.scope.id = 0;
-                    break;
-                }
-            case 'FunctionExpression':
-            case 'FunctionDeclaration':
-                {
-                    var scope = node.scope;
-                    var id = scope.outer.id;
-                    if (scope.optimize) {
-                        for (var i = 0; i < scope.var.length; i++) {
-                            var symbol = scope.var[i];
-                            var varName;
-                            while (scope.outer.isDeclared(varName = variableName(id++)));
-                            symbol.name = varName;
-                        }
-                    }
-                    scope.id = id;
-                    break;
-                }
-            case 'WithStatement':
-                {
-                    node.scope.id = node.scope.outer.id;
-                }
-            case 'TryStatement':
-                {
-                    if (node.scope !== undefined) {
-                        var scope = node.scope;
-                        var id = scope.outer.id;
-                        if (scope.optimize) {
-                            var symbol = scope.symbol;
-                            var varName;
-                            while (scope.outer.isDeclared(varName = variableName(id++)));
-                            symbol.name = varName;
-                            id++;
-                        }
-                        scope.id = id;
-                    }
-                    break;
-                }
-        }
-    },
     leave: function(node, parent) {
         switch (node.type) {
-            case 'ExpressionStatement':
-                {
-                    if (!(node.expression instanceof Object)) {
-                        return new NorlitJSCompiler.Node('EmptyStatement');
-                    }
-                    break;
-                }
             case 'IfStatement':
                 {
                     if (node.false === undefined) {
                         if (node.true.type == 'ExpressionStatement') {
-                            var replace = new NorlitJSCompiler.Node('BinaryExpression');
-                            replace.operator = '&&';
-                            replace.left = node.test;
-                            replace.right = node.true.expression;
-                            return wrapWithExprStmt(replace);
+                            if (node.test.type == 'UnaryExpression' && node.test.operator == '!') {
+                                var replace = new NorlitJSCompiler.Node('BinaryExpression');
+                                replace.operator = '||';
+                                replace.left = node.test.operand;
+                                replace.right = node.true.expression;
+                                return wrapWithExprStmt(replace);
+                            } else {
+                                var replace = new NorlitJSCompiler.Node('BinaryExpression');
+                                replace.operator = '&&';
+                                replace.left = node.test;
+                                replace.right = node.true.expression;
+                                return wrapWithExprStmt(replace);
+                            }
                         }
                     } else {
                         if (node.true.type == 'ExpressionStatement' && node.false.type == 'ExpressionStatement') {
@@ -1182,16 +1131,10 @@ exports.MinifyPass = {
                 }
             case 'BlockStatement':
                 {
-                    for (var i = 0; i < node.body.length; i++) {
-                        if (node.body[i].type == 'EmptyStatement') {
-                            node.body.splice(i, 1);
-                            i--;
-                        }
-                    }
                     if (node.body.length == 1) {
                         return node.body[0];
                     } else if (node.body.length == 0) {
-                        return new NorlitJSCompiler.Node('EmptyStatement');
+                        return new NorlitJSCompiler.Node.EMPTY;
                     }
                     break;
                 }
@@ -1208,53 +1151,53 @@ exports.MinifyPass = {
                     }
                     break;
                 }
-            case 'Program':
-                {
-                    for (var i = 0; i < node.body.length; i++) {
-                        if (node.body[i].type == 'EmptyStatement') {
-                            node.body.splice(i, 1);
-                            i--;
-                        }
-                    }
-                    break;
-                }
         }
 
-    },
-    noLiteralVisit: true
+    }
 };
 exports.minify = minify;
 },{"../compiler":3}],6:[function(require,module,exports){
 var NorlitJSCompiler = require("../compiler");
 
-function Symbol(name) {
+var Scope = {
+
+};
+
+function Symbol(name, scope) {
 	this.name = name;
-	this.type = "Symbol";
+	this.scope = scope;
 }
+
+Symbol.prototype.type = "Symbol";
+Scope.Symbol = Symbol;
 
 function DeclScope(outer) {
 	this.optimize = true;
 	this.outer = outer;
 	this.var = [];
 }
+Scope.DeclScope = DeclScope;
 
 function WithScope(outer) {
 	this.optimize = false;
 	this.outer = outer;
 	outer.disableOptimize();
 }
+Scope.WithScope = WithScope;
 
 function CatchScope(outer, param) {
 	this.optimize = true;
 	this.outer = outer;
 	this.symbol = new Symbol(param);
 }
+Scope.CatchScope = CatchScope;
 
 function GlobalScope() {
 	this.optimize = false;
 	this.outer = null;
 	this.var = [];
 }
+Scope.GlobalScope = GlobalScope;
 
 DeclScope.prototype.declare = GlobalScope.prototype.declare = function(name) {
 	for (var i = 0; i < this.var.length; i++) {
@@ -1338,6 +1281,17 @@ DeclScope.prototype.disableOptimize =
 				this.outer.disableOptimize();
 		}
 	}
+
+NorlitJSCompiler.Scope = Scope;
+},{"../compiler":3}],7:[function(require,module,exports){
+var NorlitJSCompiler = require("../compiler");
+require("./decl");
+
+var Symbol = NorlitJSCompiler.Scope.Symbol;
+var DeclScope = NorlitJSCompiler.Scope.DeclScope;
+var WithScope = NorlitJSCompiler.Scope.WithScope;
+var CatchScope = NorlitJSCompiler.Scope.CatchScope;
+var GlobalScope = NorlitJSCompiler.Scope.GlobalScope;
 
 var ASTBuilder = NorlitJSCompiler.ASTBuilder;
 
@@ -1434,8 +1388,7 @@ NorlitJSCompiler.ScopeAnalysis = function ScopeAnalysis(ast) {
 					}
 
 			}
-		},
-		noLiteralVisit: true
+		}
 	};
 
 	NorlitJSCompiler.Visitor.traverse(ast, scopeAnalyzer);
@@ -1478,7 +1431,8 @@ NorlitJSCompiler.ScopeAnalysis = function ScopeAnalysis(ast) {
 			if (ast.type == 'Identifier') {
 				var symbol = scope.resolve(ast.name);
 				if (symbol) {
-					return symbol;
+					ast.name = symbol;
+					return;
 				} else {
 					if (symbol === undefined) {
 						if (ast.name == 'undefined') {
@@ -1501,13 +1455,117 @@ NorlitJSCompiler.ScopeAnalysis = function ScopeAnalysis(ast) {
 						break;
 					}
 			}
-		},
-		noLiteralVisit: true
+		}
 	};
 
 	NorlitJSCompiler.Visitor.traverse(ast, identifierResolver);
 };
-},{"../compiler":3}],7:[function(require,module,exports){
+
+NorlitJSCompiler.Scope.Desymbolize = function(ast) {
+	NorlitJSCompiler.Visitor.traverse(ast, {
+		enter: function(ast, parent) {
+			switch (ast.type) {
+				case 'VariableDeclarator':
+					{
+						if (ast.name instanceof Symbol) {
+							ast.name = ast.name.name;
+						}
+						break;
+					}
+				case 'TryStatement':
+					{
+						if (ast.parameter instanceof Symbol) {
+							ast.parameter = ast.parameter.name;
+						}
+						break;
+					}
+				case 'Identifier':
+					{
+						if (ast.name instanceof Symbol) {
+							ast.name = ast.name.name;
+						}
+						break;
+					}
+				case 'FunctionDeclaration':
+				case 'FunctionExpression':
+					{
+						if (ast.name instanceof Symbol) {
+							ast.name = ast.name.name;
+						}
+						for (var i = 0; i < ast.parameter.length; i++) {
+							if (ast.parameter[i] instanceof Symbol) {
+								ast.parameter[i] = ast.parameter[i].name;
+							}
+						}
+						break;
+					}
+			}
+		}
+	});
+}
+
+var idStart = "_$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+var idPart = "_$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+function variableName(id) {
+	var text = idStart[id % idStart.length];
+	id = Math.floor(id / idStart.length);
+	for (; id; id = Math.floor(id / idPart.length)) {
+		text += idPart[id % idPart.length];
+	}
+	return text;
+}
+
+NorlitJSCompiler.Scope.Obfuscate = function(ast) {
+	NorlitJSCompiler.Visitor.traverse(ast, {
+		enter: function(node, parent) {
+			switch (node.type) {
+				case 'Program':
+					{
+						node.scope.id = 0;
+						break;
+					}
+				case 'FunctionExpression':
+				case 'FunctionDeclaration':
+					{
+						var scope = node.scope;
+						var id = scope.outer.id;
+						if (scope.optimize) {
+							for (var i = 0; i < scope.var.length; i++) {
+								var symbol = scope.var[i];
+								var varName;
+								while (scope.outer.isDeclared(varName = variableName(id++)));
+								symbol.name = varName;
+							}
+						}
+						scope.id = id;
+						break;
+					}
+				case 'WithStatement':
+					{
+						node.scope.id = node.scope.outer.id;
+					}
+				case 'TryStatement':
+					{
+						if (node.scope !== undefined) {
+							var scope = node.scope;
+							var id = scope.outer.id;
+							if (scope.optimize) {
+								var symbol = scope.symbol;
+								var varName;
+								while (scope.outer.isDeclared(varName = variableName(id++)));
+								symbol.name = varName;
+								id++;
+							}
+							scope.id = id;
+						}
+						break;
+					}
+			}
+		}
+	});
+}
+},{"../compiler":3,"./decl":6}],8:[function(require,module,exports){
 'use strict';
 
 var NorlitJSCompiler = require("../compiler");
@@ -1540,7 +1598,7 @@ function getCompressedType(c) {
 NorlitJSCompiler.CharType = function(c) {
 	return decompressType(getCompressedType(c));
 };
-},{"../compiler":3}],8:[function(require,module,exports){
+},{"../compiler":3}],9:[function(require,module,exports){
 'use strict';
 
 var NorlitJSCompiler = require("../compiler");
@@ -2608,7 +2666,7 @@ NorlitJSCompiler.Parser = function() {
 		return ret;
 	}
 }();
-},{"../compiler":3,"./lex":9}],9:[function(require,module,exports){
+},{"../compiler":3,"./lex":10}],10:[function(require,module,exports){
 'use strict';
 
 var NorlitJSCompiler = require("../compiler");
@@ -2747,7 +2805,7 @@ function pushback(lex, num) {
 Lex.prototype.throwError = function(msg) {
 	var err = new SyntaxError(msg);
 	err.detail = {
-		startOffset: this.startPtr,
+		startOffset: this.startOffset,
 		endOffset: this.ptr
 	};
 	this.context.throwError(err);
@@ -2852,7 +2910,7 @@ Lex.prototype.proceedSpaces = function() {
 					this.nextLineComment();
 					break;
 				} else if (n == '*') {
-					this.startPtr = this.ptr;
+					this.startOffset = this.ptr;
 					this.nextBlockComment();
 					break;
 				} else {
@@ -3041,7 +3099,7 @@ Lex.prototype.nextRawToken = function() {
 			var lastError = this.context.lastError();
 		}
 		this.proceedSpaces();
-		this.startPtr = this.ptr;
+		this.startOffset = this.ptr;
 	}
 }
 
@@ -3466,34 +3524,34 @@ Lex.prototype.nextRawRegexp = function() {
 
 Lex.prototype.nextToken = function() {
 	this.proceedSpaces();
-	this.startPtr = this.ptr;
+	this.startOffset = this.ptr;
 	var ret = this.nextRawToken();
 	if (this.lineBefore) {
 		ret.lineBefore = this.lineBefore;
 		this.lineBefore = false;
 	}
-	ret.startPtr = this.startPtr;
-	ret.endPtr = this.ptr;
+	ret.startOffset = this.startOffset;
+	ret.endOffset = this.ptr;
 	return ret;
 }
 
 Lex.prototype.nextRegexp = function(tk) {
 	pushback(this, tk.type.length);
-	this.startPtr = this.ptr;
+	this.startOffset = this.ptr;
 	var ret = this.nextRawRegexp();
 	if (this.lineBefore) {
 		ret.lineBefore = this.lineBefore;
 		this.lineBefore = false;
 	}
-	ret.startPtr = this.startPtr;
-	ret.endPtr = this.ptr;
+	ret.startOffset = this.startOffset;
+	ret.endOffset = this.ptr;
 	return ret;
 }
 
 Lex.prototype.getRaw = function(tk) {
-	return this.source.substring(tk.startPtr, tk.endPtr);
+	return this.source.substring(tk.startOffset, tk.endOffset);
 }
-},{"../compiler":3,"./chartype":7}],10:[function(require,module,exports){
+},{"../compiler":3,"./chartype":8}],11:[function(require,module,exports){
 var syntax = {
 	Constant: [],
 	Identifier: [],
@@ -3581,21 +3639,6 @@ function traverse(ast, options, parent) {
 	} else {
 		console.log('>>>>' + ast);
 		throw 'ERROR!!!!';
-		if (options.noLiteralVisit) {
-			return;
-		}
-		if (!options.noLiteralEnter && options.enter) {
-			var ret = options.enter(ast, parent);
-			if (ret !== undefined) {
-				return ret;
-			}
-		}
-		if (!options.noLiteralLeave && options.leave) {
-			var ret = options.leave(ast, parent);
-			if (ret !== undefined) {
-				return ret;
-			}
-		}
 	}
 
 }

@@ -85,21 +85,6 @@ function traverse(ast, options, parent) {
 	} else {
 		console.log('>>>>' + ast);
 		throw 'ERROR!!!!';
-		if (options.noLiteralVisit) {
-			return;
-		}
-		if (!options.noLiteralEnter && options.enter) {
-			var ret = options.enter(ast, parent);
-			if (ret !== undefined) {
-				return ret;
-			}
-		}
-		if (!options.noLiteralLeave && options.leave) {
-			var ret = options.leave(ast, parent);
-			if (ret !== undefined) {
-				return ret;
-			}
-		}
 	}
 
 }

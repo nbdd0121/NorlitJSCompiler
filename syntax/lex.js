@@ -136,7 +136,7 @@ function pushback(lex, num) {
 Lex.prototype.throwError = function(msg) {
 	var err = new SyntaxError(msg);
 	err.detail = {
-		startOffset: this.startPtr,
+		startOffset: this.startOffset,
 		endOffset: this.ptr
 	};
 	this.context.throwError(err);
@@ -241,7 +241,7 @@ Lex.prototype.proceedSpaces = function() {
 					this.nextLineComment();
 					break;
 				} else if (n == '*') {
-					this.startPtr = this.ptr;
+					this.startOffset = this.ptr;
 					this.nextBlockComment();
 					break;
 				} else {
@@ -430,7 +430,7 @@ Lex.prototype.nextRawToken = function() {
 			var lastError = this.context.lastError();
 		}
 		this.proceedSpaces();
-		this.startPtr = this.ptr;
+		this.startOffset = this.ptr;
 	}
 }
 
@@ -855,30 +855,30 @@ Lex.prototype.nextRawRegexp = function() {
 
 Lex.prototype.nextToken = function() {
 	this.proceedSpaces();
-	this.startPtr = this.ptr;
+	this.startOffset = this.ptr;
 	var ret = this.nextRawToken();
 	if (this.lineBefore) {
 		ret.lineBefore = this.lineBefore;
 		this.lineBefore = false;
 	}
-	ret.startPtr = this.startPtr;
-	ret.endPtr = this.ptr;
+	ret.startOffset = this.startOffset;
+	ret.endOffset = this.ptr;
 	return ret;
 }
 
 Lex.prototype.nextRegexp = function(tk) {
 	pushback(this, tk.type.length);
-	this.startPtr = this.ptr;
+	this.startOffset = this.ptr;
 	var ret = this.nextRawRegexp();
 	if (this.lineBefore) {
 		ret.lineBefore = this.lineBefore;
 		this.lineBefore = false;
 	}
-	ret.startPtr = this.startPtr;
-	ret.endPtr = this.ptr;
+	ret.startOffset = this.startOffset;
+	ret.endOffset = this.ptr;
 	return ret;
 }
 
 Lex.prototype.getRaw = function(tk) {
-	return this.source.substring(tk.startPtr, tk.endPtr);
+	return this.source.substring(tk.startOffset, tk.endOffset);
 }

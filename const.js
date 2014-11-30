@@ -4,15 +4,36 @@ var NorlitJSCompiler = require("./compiler");
 
 var ASTBuilder = NorlitJSCompiler.ASTBuilder;
 
+function removeUselessStatement(body) {
+	for (var i = 0; i < body.length; i++) {
+		if (!body[i].sideEffect) {
+			body.splice(i, 1);
+			i--;
+		}
+	}
+	return body.length != 0;
+}
+
 NorlitJSCompiler.ASTPass.register({
 	leave: function(node, parent) {
 		switch (node.type) {
 			case 'Symbol':
 			case 'ThisExpression':
 			case 'Constant':
-			case 'FunctionExpression':
 				{
 					node.sideEffect = false;
+					break;
+				}
+			case 'FunctionExpression':
+				{
+					removeUselessStatement(node.body);
+					node.sideEffect = false;
+					break;
+				}
+			case 'FunctionDeclaration':
+				{
+					removeUselessStatement(node.body);
+					node.sideEffect = true;
 					break;
 				}
 			case 'EmptyStatement':
@@ -71,15 +92,10 @@ NorlitJSCompiler.ASTPass.register({
 					}
 					break;
 				}
+			case 'Program':
 			case 'BlockStatement':
 				{
-					for (var i = 0; i < node.body.length; i++) {
-						if (!node.body[i].sideEffect) {
-							node.body.splice(i, 1);
-							i--;
-						}
-					}
-					node.sideEffect = node.body.length != 0;
+					node.sideEffect = removeUselessStatement(node.body);
 					break;
 				}
 			case 'BinaryExpression':
@@ -221,6 +237,5 @@ NorlitJSCompiler.ASTPass.register({
 					break;
 				}
 		}
-	},
-	noLiteralVisit: true
+	}
 });

@@ -1,116 +1,11 @@
 var NorlitJSCompiler = require("../compiler");
+require("./decl");
 
-function Symbol(name) {
-	this.name = name;
-	this.type = "Symbol";
-}
-
-function DeclScope(outer) {
-	this.optimize = true;
-	this.outer = outer;
-	this.var = [];
-}
-
-function WithScope(outer) {
-	this.optimize = false;
-	this.outer = outer;
-	outer.disableOptimize();
-}
-
-function CatchScope(outer, param) {
-	this.optimize = true;
-	this.outer = outer;
-	this.symbol = new Symbol(param);
-}
-
-function GlobalScope() {
-	this.optimize = false;
-	this.outer = null;
-	this.var = [];
-}
-
-DeclScope.prototype.declare = GlobalScope.prototype.declare = function(name) {
-	for (var i = 0; i < this.var.length; i++) {
-		if (this.var[i].name == name) {
-			return this.var[i];
-		}
-	}
-	var symbol = new Symbol(name);
-	this.var.push(symbol);
-	return symbol;
-};
-
-WithScope.prototype.declare = function(name) {
-	return this.outer.declare(name);
-}
-
-CatchScope.prototype.declare = function(name) {
-	return this.outer.declare(name);
-}
-
-DeclScope.prototype.resolve = function(name) {
-	for (var i = 0; i < this.var.length; i++) {
-		if (this.var[i].name == name) {
-			return this.var[i];
-		}
-	}
-	return this.outer.resolve(name);
-}
-
-WithScope.prototype.resolve = function(name) {
-	return null;
-}
-
-CatchScope.prototype.resolve = function(name) {
-	if (this.symbol.name == name) {
-		return this.symbol;
-	}
-	return this.outer.resolve(name);
-}
-
-GlobalScope.prototype.resolve = function(name) {
-	return undefined;
-}
-
-DeclScope.prototype.isDeclared = function(name) {
-	for (var i = 0; i < this.var.length; i++) {
-		if (this.var[i].name == name) {
-			return true;
-		}
-	}
-	return this.outer.isDeclared(name);
-}
-
-WithScope.prototype.isDeclared = function(name) {
-	return this.outer.isDeclared(name);
-}
-
-CatchScope.prototype.isDeclared = function(name) {
-	if (this.symbol.name == name) {
-		return true;
-	}
-	return this.outer.isDeclared(name);
-}
-
-GlobalScope.prototype.isDeclared = function(name) {
-	for (var i = 0; i < this.var.length; i++) {
-		if (this.var[i].name == name) {
-			return true;
-		}
-	}
-	return false;
-}
-
-DeclScope.prototype.disableOptimize =
-	WithScope.prototype.disableOptimize =
-	CatchScope.prototype.disableOptimize =
-	GlobalScope.prototype.disableOptimize = function() {
-		if (this.optimize) {
-			this.optimize = false;
-			if (this.outer)
-				this.outer.disableOptimize();
-		}
-	}
+var Symbol = NorlitJSCompiler.Scope.Symbol;
+var DeclScope = NorlitJSCompiler.Scope.DeclScope;
+var WithScope = NorlitJSCompiler.Scope.WithScope;
+var CatchScope = NorlitJSCompiler.Scope.CatchScope;
+var GlobalScope = NorlitJSCompiler.Scope.GlobalScope;
 
 var ASTBuilder = NorlitJSCompiler.ASTBuilder;
 
@@ -207,8 +102,7 @@ NorlitJSCompiler.ScopeAnalysis = function ScopeAnalysis(ast) {
 					}
 
 			}
-		},
-		noLiteralVisit: true
+		}
 	};
 
 	NorlitJSCompiler.Visitor.traverse(ast, scopeAnalyzer);
@@ -251,7 +145,8 @@ NorlitJSCompiler.ScopeAnalysis = function ScopeAnalysis(ast) {
 			if (ast.type == 'Identifier') {
 				var symbol = scope.resolve(ast.name);
 				if (symbol) {
-					return symbol;
+					ast.name = symbol;
+					return;
 				} else {
 					if (symbol === undefined) {
 						if (ast.name == 'undefined') {
@@ -274,9 +169,113 @@ NorlitJSCompiler.ScopeAnalysis = function ScopeAnalysis(ast) {
 						break;
 					}
 			}
-		},
-		noLiteralVisit: true
+		}
 	};
 
 	NorlitJSCompiler.Visitor.traverse(ast, identifierResolver);
 };
+
+NorlitJSCompiler.Scope.Desymbolize = function(ast) {
+	NorlitJSCompiler.Visitor.traverse(ast, {
+		enter: function(ast, parent) {
+			switch (ast.type) {
+				case 'VariableDeclarator':
+					{
+						if (ast.name instanceof Symbol) {
+							ast.name = ast.name.name;
+						}
+						break;
+					}
+				case 'TryStatement':
+					{
+						if (ast.parameter instanceof Symbol) {
+							ast.parameter = ast.parameter.name;
+						}
+						break;
+					}
+				case 'Identifier':
+					{
+						if (ast.name instanceof Symbol) {
+							ast.name = ast.name.name;
+						}
+						break;
+					}
+				case 'FunctionDeclaration':
+				case 'FunctionExpression':
+					{
+						if (ast.name instanceof Symbol) {
+							ast.name = ast.name.name;
+						}
+						for (var i = 0; i < ast.parameter.length; i++) {
+							if (ast.parameter[i] instanceof Symbol) {
+								ast.parameter[i] = ast.parameter[i].name;
+							}
+						}
+						break;
+					}
+			}
+		}
+	});
+}
+
+var idStart = "_$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+var idPart = "_$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+function variableName(id) {
+	var text = idStart[id % idStart.length];
+	id = Math.floor(id / idStart.length);
+	for (; id; id = Math.floor(id / idPart.length)) {
+		text += idPart[id % idPart.length];
+	}
+	return text;
+}
+
+NorlitJSCompiler.Scope.Obfuscate = function(ast) {
+	NorlitJSCompiler.Visitor.traverse(ast, {
+		enter: function(node, parent) {
+			switch (node.type) {
+				case 'Program':
+					{
+						node.scope.id = 0;
+						break;
+					}
+				case 'FunctionExpression':
+				case 'FunctionDeclaration':
+					{
+						var scope = node.scope;
+						var id = scope.outer.id;
+						if (scope.optimize) {
+							for (var i = 0; i < scope.var.length; i++) {
+								var symbol = scope.var[i];
+								var varName;
+								while (scope.outer.isDeclared(varName = variableName(id++)));
+								symbol.name = varName;
+							}
+						}
+						scope.id = id;
+						break;
+					}
+				case 'WithStatement':
+					{
+						node.scope.id = node.scope.outer.id;
+					}
+				case 'TryStatement':
+					{
+						if (node.scope !== undefined) {
+							var scope = node.scope;
+							var id = scope.outer.id;
+							if (scope.optimize) {
+								var symbol = scope.symbol;
+								var varName;
+								while (scope.outer.isDeclared(varName = variableName(id++)));
+								symbol.name = varName;
+								id++;
+							}
+							scope.id = id;
+						}
+						break;
+					}
+			}
+		}
+	});
+}
