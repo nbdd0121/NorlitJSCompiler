@@ -3,37 +3,15 @@
 var NorlitJSCompiler = require("../compiler");
 require("./lex");
 
+var Node = NorlitJSCompiler.Node;
+var ASTBuilder = NorlitJSCompiler.ASTBuilder;
+
 NorlitJSCompiler.Parser = function() {
 	function Grammar(lex, context) {
 		this.lex = lex;
 		this.context = context;
 		this.buffer = [];
 		this.strictMode = false;
-	}
-
-	function Node(type) {
-		this.type = type;
-	}
-
-	var ASTBuilder = {
-		wrapConstant: function(constant) {
-			var ret = new Node("Constant");
-			ret.value = constant;
-			ret.sideEffect = false;
-			return ret;
-		}
-	};
-
-	NorlitJSCompiler.Node = Node;
-	NorlitJSCompiler.ASTBuilder = ASTBuilder;
-
-
-	Node.ILLEGAL = new Node('<illegal>');
-	Node.EMPTY = new Node('EmptyStatement');
-	Node.EMPTY.sideEffect = false;
-
-	Node.prototype.push = function(obj) {
-		this[this.length++] = obj;
 	}
 
 	Grammar.prototype._getErrorPosition = function(token) {
@@ -625,7 +603,7 @@ NorlitJSCompiler.Parser = function() {
 				return this.varStmt();
 			case ';':
 				this.next();
-				return new Node('EmptyStatement');
+				return Node.EMPTY;
 			case 'if':
 				return this.ifStmt();
 			case 'do':

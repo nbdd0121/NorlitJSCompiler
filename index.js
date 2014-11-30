@@ -12,7 +12,7 @@ var c = fs.readFileSync(str).toString();
 
 var minifier = require("./module/minify");
 
-require("./scope");
+require("./scope/scope");
 
 try {
 	var context = new NorlitJSCompiler.Context(false);

@@ -45,9 +45,11 @@ NorlitJSCompiler.Context = function() {
 
 /* Defines NorlitJSCompiler.CharType */
 require("./syntax/chartype");
+/* Defines NorlitJSCompiler.Node & NorlitJSCompiler.ASTBuilder */
+require("./ast/builder");
 /* Defines NorlitJSCompiler.Lex & NorlitJSCompiler.Token */
 require("./syntax/lex");
-/* Defines NorlitJSCompiler.Parser & NorlitJSCompiler.Node */
+/* Defines NorlitJSCompiler.Parser */
 require("./syntax/grammar");
 
 NorlitJSCompiler.Visitor = require("./visitor.js");

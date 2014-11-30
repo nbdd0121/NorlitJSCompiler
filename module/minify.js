@@ -159,13 +159,14 @@ function minifyString(str) {
 }
 
 function isIdentifierName(str) {
-    try {
-        var lex = new NorlitJSCompiler.Lex(str);
-        lex.parseId = false;
-        return lex.nextToken().type == 'id' && lex.nextToken().type == 'eof';
-    } catch (e) {
+    if (!str.length)
         return false;
-    }
+    if (!NorlitJSCompiler.Lex.isIdentifierStart(str))
+        return false;
+    for (var i = 1; i < str.length; i++)
+        if (!NorlitJSCompiler.Lex.isIdentifierPart(str))
+            return false;
+    return true;
 }
 
 var precedent = [
@@ -774,7 +775,7 @@ exports.MinifyPass = {
                         for (var i = 0; i < scope.var.length; i++) {
                             var symbol = scope.var[i];
                             var varName;
-                            while (scope.outer.resolve(varName = variableName(id++)));
+                            while (scope.outer.isDeclared(varName = variableName(id++)));
                             symbol.name = varName;
                         }
                     }
@@ -793,7 +794,7 @@ exports.MinifyPass = {
                         if (scope.optimize) {
                             var symbol = scope.symbol;
                             var varName;
-                            while (scope.outer.resolve(varName = variableName(id++)));
+                            while (scope.outer.isDeclared(varName = variableName(id++)));
                             symbol.name = varName;
                             id++;
                         }
