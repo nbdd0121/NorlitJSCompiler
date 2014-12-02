@@ -29,6 +29,11 @@ var ASTBuilder = {
 		ret.value = constant;
 		ret.sideEffect = false;
 		return ret;
+	},
+	wrapExpression: function(expr) {
+		var ret = new Node('ExpressionStatement');
+		ret.expression = expr;
+		return ret;
 	}
 };
 

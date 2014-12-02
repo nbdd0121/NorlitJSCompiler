@@ -67,96 +67,7 @@ var minifyNumber = function() {
     }
 }();
 
-function minifyString(str) {
-    var single = "'";
-    var double = '"';
-    for (var i = 0; i < str.length; i++) {
-        switch (str[i]) {
-            case '\0':
-                single += '\\0';
-                double += '\\0';
-                break;
-            case '"':
-                single += '"';
-                double += '\\"';
-                break;
-            case "'":
-                single += "\\'";
-                double += "'";
-                break;
-            case '\\':
-                single += '\\\\';
-                double += '\\\\';
-                break;
-            case '\b':
-                single += '\\b';
-                double += '\\b';
-                break;
-            case '\f':
-                single += '\\f';
-                double += '\\f';
-                break;
-            case '\n':
-                single += '\\n';
-                double += '\\n';
-                break;
-            case '\r':
-                single += '\\r';
-                double += '\\r';
-                break;
-            case '\t':
-                single += '\\t';
-                double += '\\t';
-                break;
-            case '\v':
-                single += '\\v';
-                double += '\\v';
-                break;
-            default:
-                switch (NorlitJSCompiler.CharType(str[i])) {
-                    case 'LOWERCASE_LETTER':
-                    case 'UPPERCASE_LETTER':
-                    case 'OTHER_LETTER':
-                    case 'DECIMAL_DIGIT_NUMBER':
-                    case 'CONNECTOR_PUNCTUATION':
-                    case 'MATH_SYMBOL':
-                    case 'DASH_PUNCTUATION':
-                    case 'OTHER_PUNCTUATION':
-                    case 'END_PUNCTUATION':
-                    case 'START_PUNCTUATION':
-                    case 'MODIFIER_SYMBOL':
-                    case 'SPACE_SEPARATOR':
-                    case 'CURRENCY_SYMBOL':
-                        single += str[i];
-                        double += str[i];
-                        break;
-                    case 'CONTROL':
-                    case 'FORMAT':
-                    case 'LINE_SEPARATOR':
-                    case 'PARAGRAPH_SEPARATOR':
-                    case 'UNASSIGNED':
-                    default:
-                        {
-                            var code = str[i].charCodeAt(0);
-                            if (code < 0xFF) {
-                                var escape = '\\x' + (0x100 + code).toString(16).substr(1).toUpperCase();
-                            } else {
-                                var escape = '\\u' + (0x10000 + code).toString(16).substr(1).toUpperCase();
-                            }
-                            single += escape;
-                            double += escape;
-                            break;
-                        }
-                }
-        }
-    }
-    single += "'";
-    double += '"';
-    return {
-        str: single.length > double.length ? double : single,
-        p: 'PrimaryExpression'
-    };
-}
+var minifyString = require("../stringify/string");
 
 function isIdentifierName(str) {
     if (!str.length)
@@ -234,7 +145,10 @@ function minify(ast) {
                             p: 'PrimaryExpression'
                         }
                     case 'string':
-                        return minifyString(ast.value);
+                        return {
+                            str: minifyString(ast.value),
+                            p: 'PrimaryExpression'
+                        };
                     case 'boolean':
                         return {
                             str: '!' + Number(!ast.value),
@@ -289,7 +203,7 @@ function minify(ast) {
             }
         case 'Property':
             {
-                var name = (isIdentifierName(ast.key) || +ast.key + "" == ast.key) ? ast.key : minifyString(ast.key).str;
+                var name = (isIdentifierName(ast.key) || +ast.key + "" == ast.key) ? ast.key : minifyString(ast.key);
                 return {
                     str: name + ":" + wrap(minify(ast.value), 'AssignmentExpression').str
                 };
@@ -506,7 +420,11 @@ function minify(ast) {
             {
                 var str = "if(" + minify(ast.test).str + ")" + minify(ast.true).str;
                 if (ast.false !== undefined) {
-                    str += "else " + minify(ast.false).str;
+                    var falseStr = minify(ast.false).str;
+                    if (NorlitJSCompiler.Lex.isIdentifierPart(falseStr[0])) {
+                        falseStr = " " + falseStr;
+                    }
+                    str += "else" + falseStr;
                 }
                 return {
                     str: str
@@ -526,8 +444,12 @@ function minify(ast) {
             }
         case 'DoStatement':
             {
+                var bodyStr = minify(ast.body).str;
+                if (NorlitJSCompiler.Lex.isIdentifierPart(bodyStr[0])) {
+                    bodyStr = " " + bodyStr;
+                }
                 return {
-                    str: "do " + minify(ast.body).str + "while(" + minify(ast.test).str + ");"
+                    str: "do" + bodyStr + "while(" + minify(ast.test).str + ");"
                 };
             }
         case 'ForStatement':
@@ -562,7 +484,7 @@ function minify(ast) {
             }
         case 'TryStatement':
             {
-                var str = "try " + minify(ast.body).str;
+                var str = "try" + minify(ast.body).str;
                 if (ast.catch !== undefined) {
                     var param = ast.parameter;
                     str += "catch(" + param + ")" + minify(ast.catch).str;
@@ -773,7 +695,7 @@ exports.MinifyPass = {
                     if (node.body.length == 1) {
                         return node.body[0];
                     } else if (node.body.length == 0) {
-                        return new NorlitJSCompiler.Node.EMPTY;
+                        return NorlitJSCompiler.Node.EMPTY;
                     }
                     break;
                 }

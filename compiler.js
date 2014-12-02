@@ -52,6 +52,12 @@ require("./syntax/lex");
 /* Defines NorlitJSCompiler.Parser */
 require("./syntax/grammar");
 
+require("./scope/scope");
+
+var Pass = {};
+NorlitJSCompiler.Pass = Pass;
+require("./pass/moveVar");
+
 NorlitJSCompiler.Visitor = require("./visitor.js");
 NorlitJSCompiler.ASTPass = (function() {
 	var ASTPass = [];

@@ -4,12 +4,14 @@ var Scope = {
 
 };
 
-function Symbol(name, scope) {
+function Symbol(name) {
 	this.name = name;
-	this.scope = scope;
 }
 
 Symbol.prototype.type = "Symbol";
+Symbol.prototype.toString = function() {
+	return this.name;
+}
 Scope.Symbol = Symbol;
 
 function DeclScope(outer) {

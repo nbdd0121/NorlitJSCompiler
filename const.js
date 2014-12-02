@@ -6,9 +6,18 @@ var ASTBuilder = NorlitJSCompiler.ASTBuilder;
 
 function removeUselessStatement(body) {
 	for (var i = 0; i < body.length; i++) {
-		if (!body[i].sideEffect) {
-			body.splice(i, 1);
-			i--;
+		switch (body[i].type) {
+			case 'ReturnStatement':
+			case 'ThrowStatement':
+			case 'BreakStatement':
+			case 'ContinueStatement':
+				body.splice(i + 1, body.length - i - 1);
+				return true;
+			default:
+				if (!body[i].sideEffect) {
+					body.splice(i, 1);
+					i--;
+				}
 		}
 	}
 	return body.length != 0;
