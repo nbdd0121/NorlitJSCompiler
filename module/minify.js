@@ -690,28 +690,6 @@ exports.MinifyPass = {
                     }
                     break;
                 }
-            case 'BlockStatement':
-                {
-                    if (node.body.length == 1) {
-                        return node.body[0];
-                    } else if (node.body.length == 0) {
-                        return NorlitJSCompiler.Node.EMPTY;
-                    }
-                    break;
-                }
-            case 'TryStatement':
-                {
-                    if (node.body !== undefined && node.body.type != 'BlockStatement') {
-                        node.body = wrapWithBlock(node.body);
-                    }
-                    if (node.catch !== undefined && node.catch.type != 'BlockStatement') {
-                        node.catch = wrapWithBlock(node.catch);
-                    }
-                    if (node.finally !== undefined && node.finally.type != 'BlockStatement') {
-                        node.finally = wrapWithBlock(node.finally);
-                    }
-                    break;
-                }
         }
 
     }

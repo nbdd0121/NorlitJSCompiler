@@ -102,9 +102,20 @@ NorlitJSCompiler.ASTPass.register({
 					break;
 				}
 			case 'Program':
+				{
+					node.sideEffect = removeUselessStatement(node.body);
+					break;
+				}
 			case 'BlockStatement':
 				{
 					node.sideEffect = removeUselessStatement(node.body);
+					if (parent.type != 'TryStatement') {
+						if (node.body.length == 0) {
+							return NorlitJSCompiler.Node.EMPTY;
+						} else if (node.body.length == 1) {
+							return node.body[0];
+						}
+					}
 					break;
 				}
 			case 'BinaryExpression':

@@ -231,9 +231,20 @@ NorlitJSCompiler.ASTPass.register({
 					break;
 				}
 			case 'Program':
+				{
+					node.sideEffect = removeUselessStatement(node.body);
+					break;
+				}
 			case 'BlockStatement':
 				{
 					node.sideEffect = removeUselessStatement(node.body);
+					if (parent.type != 'TryStatement') {
+						if (node.body.length == 0) {
+							return NorlitJSCompiler.Node.EMPTY;
+						} else if (node.body.length == 1) {
+							return node.body[0];
+						}
+					}
 					break;
 				}
 			case 'BinaryExpression':
@@ -1067,28 +1078,6 @@ exports.MinifyPass = {
                             replace.false = node.false.expression;
                             return wrapWithExprStmt(replace);
                         }
-                    }
-                    break;
-                }
-            case 'BlockStatement':
-                {
-                    if (node.body.length == 1) {
-                        return node.body[0];
-                    } else if (node.body.length == 0) {
-                        return NorlitJSCompiler.Node.EMPTY;
-                    }
-                    break;
-                }
-            case 'TryStatement':
-                {
-                    if (node.body !== undefined && node.body.type != 'BlockStatement') {
-                        node.body = wrapWithBlock(node.body);
-                    }
-                    if (node.catch !== undefined && node.catch.type != 'BlockStatement') {
-                        node.catch = wrapWithBlock(node.catch);
-                    }
-                    if (node.finally !== undefined && node.finally.type != 'BlockStatement') {
-                        node.finally = wrapWithBlock(node.finally);
                     }
                     break;
                 }
