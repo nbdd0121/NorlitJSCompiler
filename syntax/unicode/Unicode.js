@@ -15,7 +15,7 @@ function tableLookup(table, codepoint) {
 	return false;
 }
 
-class Unicode {
+export default class Unicode {
 	static isIdStart(codepoint) {
 		if (typeof(codepoint) == 'string') {
 			codepoint = codepoint.codePointAt(0);
