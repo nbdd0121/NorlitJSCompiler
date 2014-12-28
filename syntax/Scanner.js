@@ -41,6 +41,38 @@ class Scanner {
 		}
 	}
 
+	static isIdentifierStart(char) {
+		switch (char) {
+			case undefined:
+				return false;
+			case '$':
+			case '_':
+				return true;
+		}
+		return Unicode.isIdStart(char);
+	}
+
+	static isIdentifierPart(char) {
+		switch (char) {
+			case undefined:
+				return false;
+			case '$':
+			case '_':
+			case '\u200C':
+			case '\u200D':
+				return true;
+		}
+		return Unicode.isIdContinue(char);
+	}
+
+	static isHexDigit(char) {
+		return "0123456789ABCDEFabcdef".indexOf(char) != -1;
+	}
+
+	static getHexDigit(char) {
+		return "0123456789ABCDEF".indexOf(char.toUpperCase());
+	}
+
 	_next(len = 1) {
 		const ret = this.source.substring(this.pointer, this.pointer + len);
 		this.pointer += len;
@@ -176,6 +208,70 @@ class Scanner {
 		}
 	}
 
+
+
+	parseIdentifierName() {
+		let id = this._next();
+		if (id == '\\') {
+			id = this.parseUnicodeEscapeSequence();
+			if (!Scanner.isIdentifierStart(id)) {
+				this._throw('Unicode escape sequence should be proper identifier start');
+			}
+		} else if (id != '$' && id != '_' && !Unicode.isIdStart(id)) {
+			Assertion.assert(0, 'Expected identifier start');
+		}
+		while (true) {
+			const nxt = this._next();
+			if (nxt == '\\') {
+				const esc = this.parseUnicodeEscapeSequence();
+				if (!Scanner.isIdentifierPart(esc)) {
+					this._throw('Unicode escape sequence should be proper identifier part');
+				}
+				id += esc;
+			} else if (Scanner.isIdentifierPart(nxt)) {
+				id += nxt;
+			} else {
+				this._pushback();
+				break;
+			}
+		}
+		return id;
+	}
+
+	/* Conform to ES6 11.8.4 */
+	parseUnicodeEscapeSequence() {
+		this._expect('u');
+		if (this._lookahead() == '{') {
+			this._consume();
+			let val = 0;
+			while (true) {
+				const d = this._next();
+				if (d == '}') {
+					return String.fromCodePoint(val);
+				} else if (Scanner.isHexDigit(d)) {
+					val *= 16;
+					val += Scanner.getHexDigit(d);
+				} else {
+					this._throw("Expected hex digits in unicode escape sequence");
+					return "";
+				}
+			}
+		} else {
+			let val = 0;
+			for (let i = 0; i < 4; i++) {
+				const d = this._next();
+				if (Scanner.isHexDigit(d)) {
+					val *= 16;
+					val += Scanner.getHexDigit(d);
+				} else {
+					this._throw("Expected hex digits in unicode escape sequence");
+					return "";
+				}
+			}
+			return String.fromCharCode(val);
+		}
+	}
+
 }
 
 class LexicalUnit {
@@ -192,9 +288,5 @@ class Comment extends LexicalUnit {
 }
 
 var ctx = new Context();
-var syn = new Scanner(ctx,
-	`/* a=1; *a*/ 
-	`);
-syn._processComments = true;
-syn.skipWhitespace();
-console.log(syn._leadingComments);
+var syn = new Scanner(ctx, '\\u{61}bc\\u0064\\u{65}');
+console.log(syn.parseIdentifierName());;
