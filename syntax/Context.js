@@ -13,7 +13,7 @@ class Context {
 		console.log(err.toString() + ' at Line ' + lineNum + ":" + (column + 1));
 		console.log(line);
 		console.log(StringUtil.repeat(' ', column) + StringUtil.repeat('~', err.range[1] - err.range[0] - 1) + '^');
-		throw 'Abort';
+		throw '1 error found. Parsing aborted.';
 	}
 }
 
