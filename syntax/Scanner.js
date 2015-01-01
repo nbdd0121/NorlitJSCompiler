@@ -1,6 +1,55 @@
-import Unicode from 'syntax/unicode/Unicode'
-import Context from 'syntax/Context'
-import Assertion from 'util/Assertion'
+import Unicode from 'syntax/unicode/Unicode';
+import Context from 'syntax/Context';
+import Assertion from 'util/Assertion';
+import Token from 'syntax/tree/Token';
+
+const strictReserved = {
+	implements: true,
+	interface: true,
+	package: true,
+	private: true,
+	protected: true,
+	public: true
+};
+
+const keywords = {
+	break: true,
+	case: true,
+	catch: true,
+	class: true,
+	const: true,
+	continue: true,
+	debugger: true,
+	default: true,
+	delete: true,
+	do: true,
+	else: true,
+	export: true,
+	extends: true,
+	finally: true,
+	for: true,
+	function: true,
+	if: true,
+	import: true,
+	in : true,
+	instanceof: true,
+	new: true,
+	return: true,
+	super: true,
+	switch: true,
+	this: true,
+	throw: true,
+	try: true,
+	typeof: true,
+	var: true,
+	void: true,
+	while: true,
+	with: true,
+	yield: true,
+	null: true,
+	true: true,
+	false: true
+};
 
 class Scanner {
 	constructor(context, source) {
@@ -14,6 +63,8 @@ class Scanner {
 
 		this.processComments = false;
 		this.htmlLikeComment = true;
+		this.awaitAsReserved = true;
+		this.resolveIdentifierName = true;
 	}
 
 	static isWhitespace(char) {
@@ -76,6 +127,24 @@ class Scanner {
 		return "0123456789ABCDEF".indexOf(char.toUpperCase());
 	}
 
+	static isFutureReservedWord(name, awaitAsReserved = true) {
+		if (name === 'enum') {
+			return true;
+		} else if (name === 'await' && awaitAsReserved) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	static isStrictModeFutureReserved(name) {
+		return strictReserved.hasOwnProperty(name);
+	}
+
+	static isKeyword(name) {
+		return keywords.hasOwnProperty(name);
+	}
+
 	_next(len = 1) {
 		const ret = this.source.substring(this.pointer, this.pointer + len);
 		this.pointer += len;
@@ -96,7 +165,7 @@ class Scanner {
 
 	_expect(seq) {
 		const taken = this._next(seq.length);
-		Assertion.assert(taken === seq, `Expected \`${seq}\`, but encountered \`${taken}\``);
+		Assertion.assert(taken === seq, `Expected \`${seq}\`, but encountered \`${taken ? taken : 'EOF'}\``);
 	}
 
 	_start() {
@@ -290,7 +359,11 @@ class Scanner {
 		const nxt = this._next();
 		switch (nxt) {
 			case undefined:
-				return this._createWrappedToken('EOF');
+				{
+					const token = this._createWrappedToken('EOF');
+					token.lineBefore = true;
+					return token;
+				}
 			case '}': // Dealing with right brace as template tail is in parser
 			case '{':
 			case '(':
@@ -366,6 +439,7 @@ class Scanner {
 				}
 			case '=':
 				if (this._lookahead() === '>') {
+					this._consume();
 					return this._createWrappedToken('=>');
 				}
 			case '!':
@@ -440,14 +514,38 @@ class Scanner {
 				return this.nextString();
 			case '\\':
 				this._pushback();
-				return this.nextIdentifierName();
+				return this.nextIdentifierNameResolved();
 			default:
 				if (Scanner.isIdentifierStart(nxt)) {
 					this._pushback();
-					return this.nextIdentifierName();
+					return this.nextIdentifierNameResolved();
 				}
-				throw new Error('UNEXP ' + nxt);
+				throw this._throw(`Unexpected character ${nxt} in source text`);
 		}
+	}
+
+	resolveIdentifier(idName) {
+		if (Scanner.isKeyword(idName.value)) {
+			const token = new Token(idName.value);
+			token.range = idName.range;
+			return token;
+		}
+		if (Scanner.isFutureReservedWord(idName.value, this.awaitAsReserved)) {
+			this._throw(`${idName.value}, as future reserved word, cannot be used as identifier`);
+			return idName;
+		}
+		if (Scanner.isStrictModeFutureReserved(idName)) {
+			idName.strictModeError = 'Future reserved word in strict mode';
+		}
+		return idName;
+	}
+
+	nextIdentifierNameResolved() {
+		const idName = this.nextIdentifierName();
+		if (!this.resolveIdentifierName || idName.range[1] - idName.range[0] != idName.value.length) {
+			return idName;
+		}
+		return this.resolveIdentifier(idName);
 	}
 
 	/* ES6 11.6 */
@@ -1074,26 +1172,12 @@ class Scanner {
 			}
 		}
 	}
-
 }
 
-class LexicalUnit {
-	constructor() {
-
-	}
-}
-
-class Comment extends LexicalUnit {
+class Comment {
 	constructor(type, content) {
 		this.type = type;
 		this.content = content;
-	}
-}
-
-class Token extends LexicalUnit {
-	constructor(type) {
-		this.type = type;
-
 	}
 }
 
