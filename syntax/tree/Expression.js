@@ -1,3 +1,25 @@
+export class ObjectPattern {
+	constructor(elements) {
+		this.type = 'ObjectPattern';
+		this.elements = elements;
+	}
+}
+
+export class ArrayPattern {
+	constructor(elements) {
+		this.type = 'ArrayPattern';
+		this.elements = elements;
+	}
+}
+
+export class DefaultParameter {
+	constructor(pattern, defaultValue = null) {
+		this.type = 'DefaultParameter';
+		this.pattern = pattern;
+		this.default = defaultValue;
+	}
+}
+
 export class ArrayLiteral {
 	constructor(elements) {
 		this.type = 'ArrayLiteral';
@@ -9,13 +31,6 @@ export class ObjectLiteral {
 	constructor(elements) {
 		this.type = 'ObjectLiteral';
 		this.elements = elements;
-	}
-}
-
-export class IdentifierReference {
-	constructor(id) {
-		this.type = 'IdentifierReference';
-		this.id = id;
 	}
 }
 
@@ -40,6 +55,14 @@ export class CoveredFormals {
 	constructor(body) {
 		this.type = 'CoveredFormals';
 		this.body = body;
+	}
+}
+
+export class CoverInitializedName {
+	constructor(key, value) {
+		this.type = 'CoverInitializedName';
+		this.key = key;
+		this.value = value;
 	}
 }
 

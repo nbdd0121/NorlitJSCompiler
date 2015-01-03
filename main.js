@@ -9,34 +9,33 @@ if (process.argv <= 1) {
 	throw new TypeError('Expected file');
 }
 const file = fs.readFileSync(process.argv[1]).toString();
-const ctx = new Context();
-const syn = new Scanner(ctx, file);
-const psr = new Parser(ctx, syn);
-syn.processComments = true;
 
-console.time('a');
-const script = psr.parseScript();
-console.log(JSON.stringify(script, null, 2));
-console.timeEnd('a');
-
-// benchmark
 function testCase() {
 	const ctx = new Context();
 	const syn = new Scanner(ctx, file);
 	const psr = new Parser(ctx, syn);
-	psr.parseScript();
+	return psr.parseModule();
+}
+
+function time(testcase) {
+	const start = Date.now();
+	const value = testCase();
+	return {
+		time: Date.now() - start,
+		value
+	};
 }
 
 function runTestCase(testcase, num) {
-	const data = Stream.fill(() => {
-		const start = Date.now();
-		testCase();
-		return Date.now() - start;
-	}, num).toArray();
+	const data = Stream.fill(() => time(testcase).time, num).toArray();
 	const meanTime = Statistics.mean(data);
 	const stdev = Statistics.stdev(data, meanTime);
-	console.log(`Average time for running ${num} cases is ${meanTime} ms ± ${Math.round(2 * stdev * 10) / 10}ms`);
+	console.log(`Average time for running ${num} cases is ${meanTime.toFixed(3)} ms ± ${(2 * stdev).toFixed(3)}ms`);
 }
 
-
-runTestCase(testCase, 1000);
+debugger;
+const result = time(testCase);
+debugger;
+console.log(JSON.stringify(result.value, null, 2));
+console.log('Time: ' + result.time + 'ms');
+runTestCase(testCase, 100);

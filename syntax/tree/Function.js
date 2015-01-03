@@ -10,7 +10,7 @@ export class FunctionExpression {
 
 export class FunctionDeclaration {
 	constructor(generator, name, param, body) {
-		this.type = 'FunctionExpression';
+		this.type = 'FunctionDeclaration';
 		this.generator = generator;
 		this.name = name;
 		this.parameters = param;

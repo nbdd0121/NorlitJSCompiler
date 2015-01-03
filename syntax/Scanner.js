@@ -53,10 +53,11 @@ const keywords = {
 
 class Scanner {
 	constructor(context, source) {
-		Assertion.checkType(source, 'string');
 		this.context = context;
 		this.source = source;
 		this.pointer = 0;
+
+		this.tokenStart = undefined;
 
 		this._lineBefore = false;
 		this._leadingComments = null;
@@ -68,7 +69,6 @@ class Scanner {
 	}
 
 	static isWhitespace(char) {
-		Assertion.checkArguments(arguments, 'string');
 		switch (char) {
 			case '\t':
 			case '\v':
@@ -83,7 +83,6 @@ class Scanner {
 	}
 
 	static isLineTerminator(char) {
-		Assertion.checkArguments(arguments, 'string');
 		switch (char) {
 			case '\r':
 			case '\n':
@@ -97,7 +96,7 @@ class Scanner {
 
 	static isIdentifierStart(char) {
 		switch (char) {
-			case undefined:
+			case '':
 				return false;
 			case '$':
 			case '_':
@@ -108,7 +107,7 @@ class Scanner {
 
 	static isIdentifierPart(char) {
 		switch (char) {
-			case undefined:
+			case '':
 				return false;
 			case '$':
 			case '_':
@@ -146,21 +145,27 @@ class Scanner {
 	}
 
 	_next(len = 1) {
+		if (len == 1) {
+			return this.source[this.pointer++] || '';
+		}
 		const ret = this.source.substring(this.pointer, this.pointer + len);
 		this.pointer += len;
-		return ret || undefined;
+		return ret;
 	}
 
 	_consume(len = 1) {
 		this.pointer += len;
 	}
 
-	_pushback(len = 1) {
-		this.pointer -= len;
+	_pushback() {
+		this.pointer--;
 	}
 
 	_lookahead(len = 1) {
-		return this.source.substring(this.pointer, this.pointer + len) || undefined;
+		if (len == 1) {
+			return this.source[this.pointer] || '';
+		}
+		return this.source.substring(this.pointer, this.pointer + len) || '';
 	}
 
 	_expect(seq) {
@@ -198,19 +203,19 @@ class Scanner {
 		return this._wrap(new Token(type));
 	}
 
-	_throw(msg) {
-		const range = [this.tokenStart, this.pointer];
+	_throw(msg, unit) {
+		const range = unit ? unit.range : [this.tokenStart, this.pointer];
 		const err = new SyntaxError(msg);
 		err.range = range;
 		err.source = this;
 		this.context.error(err);
 	}
 
-	_pushComment(arrow) {
+	_pushComment(comment) {
 		if (!this._leadingComments) {
 			this._leadingComments = [];
 		}
-		this._leadingComments.push(arrow(!this.processComments));
+		this._leadingComments.push(comment);
 	}
 
 	/* Helper used by syntax/Context */
@@ -235,7 +240,7 @@ class Scanner {
 
 	/* Comments ES6 11.4 */
 
-	nextLineComment(ignore = true) {
+	nextLineComment() {
 		this._start();
 		this._expect('//');
 		while (true) {
@@ -245,12 +250,12 @@ class Scanner {
 				break;
 			}
 		}
-		if (!ignore) {
-			return this._wrap(new Comment('Line', this.source.substring(this.tokenStart + 2, this.pointer)));
+		if (this.processComments) {
+			this._pushComment(this._wrap(new Comment('Line', this.source.substring(this.tokenStart + 2, this.pointer))));
 		}
 	}
 
-	nextBlockComment(ignore = true) {
+	nextBlockComment() {
 		this._start();
 		this._expect('/*');
 		while (true) {
@@ -266,12 +271,12 @@ class Scanner {
 				}
 			}
 		}
-		if (!ignore) {
-			return this._wrap(new Comment('Block', this.source.substring(this.tokenStart + 2, this.pointer - 2)));
+		if (this.processComments) {
+			this._pushComment(this._wrap(new Comment('Block', this.source.substring(this.tokenStart + 2, this.pointer - 2))));
 		}
 	}
 
-	nextHTMLOpenComment(ignore = true) {
+	nextHTMLOpenComment() {
 		this._start();
 		this._expect('<!--');
 		while (true) {
@@ -281,12 +286,12 @@ class Scanner {
 				break;
 			}
 		}
-		if (!ignore) {
-			return this._wrap(new Comment('HTMLOpen', this.source.substring(this.tokenStart + 4, this.pointer)));
+		if (this.processComments) {
+			this._pushComment(this._wrap(new Comment('HTMLOpen', this.source.substring(this.tokenStart + 4, this.pointer))));
 		}
 	}
 
-	nextHTMLCloseComment(ignore = true) {
+	nextHTMLCloseComment() {
 		this._start();
 		this._expect('-->');
 		while (true) {
@@ -296,13 +301,9 @@ class Scanner {
 				break;
 			}
 		}
-		if (!ignore) {
-			return this._wrap(new Comment('HTMLClose', this.source.substring(this.tokenStart + 3, this.pointer)));
+		if (this.processComments) {
+			this._pushComment(this._wrap(new Comment('HTMLClose', this.source.substring(this.tokenStart + 3, this.pointer))));
 		}
-	}
-
-	nextComment(ignore = true) {
-		return this._lookahead(2) == '//' ? this.nextLineComment(ignore) : this.nextBlockComment(ignore);
 	}
 
 	/**
@@ -321,23 +322,23 @@ class Scanner {
 				const llh = this._lookahead();
 				this._pushback();
 				if (llh == '/') {
-					this._pushComment(ignore => this.nextLineComment(ignore));
+					this.nextLineComment();
 				} else if (llh === '*') {
-					this._pushComment(ignore => this.nextBlockComment(ignore));
+					this.nextBlockComment();
 				} else {
 					return;
 				}
 			} else if (this.htmlLikeComment && char === '<') {
 				this._pushback();
 				if (this._lookahead(4) === '<!--') {
-					this._pushComment(ignore => this.nextHTMLOpenComment(ignore));
+					this.nextHTMLOpenComment();
 				} else {
 					return;
 				}
 			} else if (this.htmlLikeComment && this._lineBefore && char === '-') {
 				this._pushback();
 				if (this._lookahead(3) === '-->') {
-					this._pushComment(ignore => this.nextHTMLCloseComment(ignore));
+					this.nextHTMLCloseComment();
 				} else {
 					return;
 				}
@@ -358,7 +359,7 @@ class Scanner {
 		this._start();
 		const nxt = this._next();
 		switch (nxt) {
-			case undefined:
+			case '':
 				{
 					const token = this._createWrappedToken('EOF');
 					token.lineBefore = true;
@@ -451,6 +452,8 @@ class Scanner {
 						this._consume();
 						return this._createWrappedToken(nxt + '=');
 					}
+				} else {
+					return this._createWrappedToken(nxt);
 				}
 			case '+':
 			case '-':
@@ -528,10 +531,16 @@ class Scanner {
 		if (Scanner.isKeyword(idName.value)) {
 			const token = new Token(idName.value);
 			token.range = idName.range;
+			if (idName.lineBefore) {
+				token.lineBefore = true;
+			}
+			if (idName.leadingComments) {
+				token.leadingComments = idName.leadingComments;
+			}
 			return token;
 		}
 		if (Scanner.isFutureReservedWord(idName.value, this.awaitAsReserved)) {
-			this._throw(`${idName.value}, as future reserved word, cannot be used as identifier`);
+			this._throw(`${idName.value}, as future reserved word, cannot be used as identifier`, idName);
 			return idName;
 		}
 		if (Scanner.isStrictModeFutureReserved(idName)) {
@@ -762,8 +771,13 @@ class Scanner {
 		while (true) {
 			const next = this._next();
 			switch (next) {
-				case quote:
+				case '"':
+				case "'":
 					{
+						if (quote !== next) {
+							value += next;
+							break;
+						}
 						const token = this._createWrappedToken('String');
 						token.value = value;
 						if (oct) {
@@ -867,7 +881,7 @@ class Scanner {
 						}
 						break;
 					}
-				case undefined:
+				case '':
 				case '\r':
 				case '\n':
 				case '\u2028':
@@ -944,7 +958,7 @@ class Scanner {
 					{
 						const _1 = this._next();
 						switch (_1) {
-							case undefined:
+							case '':
 							case '\r':
 							case '\n':
 							case '\u2028':
@@ -964,7 +978,7 @@ class Scanner {
 					regexp += ']';
 					inClass = false;
 					break;
-				case undefined:
+				case '':
 				case '\r':
 				case '\n':
 				case '\u2028':
