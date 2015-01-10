@@ -1,3 +1,13 @@
+export class Expression {
+	isValidSimpleAssignmentTarget() {
+		return false;
+	}
+
+	isFunctionDefinition() {
+		return false;
+	}
+}
+
 export class ObjectPattern {
 	constructor(elements) {
 		this.type = 'ObjectPattern';
@@ -20,14 +30,14 @@ export class DefaultParameter {
 	}
 }
 
-export class ArrayLiteral {
+export class ArrayLiteral extends Expression {
 	constructor(elements) {
 		this.type = 'ArrayLiteral';
 		this.elements = elements;
 	}
 }
 
-export class ObjectLiteral {
+export class ObjectLiteral extends Expression {
 	constructor(elements) {
 		this.type = 'ObjectLiteral';
 		this.elements = elements;
@@ -68,29 +78,33 @@ export class CoverInitializedName {
 
 /* LeftHandSideExpression */
 
-export class SuperNewExpression {
+export class SuperNewExpression extends Expression {
 	constructor(args = null) {
 		this.type = 'SuperNewExpression';
 		this.arguments = args;
 	}
 }
 
-export class SuperCallExpression {
+export class SuperCallExpression extends Expression {
 	constructor(args = null) {
 		this.type = 'SuperCallExpression';
 		this.arguments = args;
 	}
 }
 
-export class SuperPropertyExpression {
+export class SuperPropertyExpression extends Expression {
 	constructor(prop, computed = true) {
 		this.type = 'SuperMemberExpression';
 		this.property = prop;
 		this.computed = computed;
 	}
+
+	isValidSimpleAssignmentTarget() {
+		return true;
+	}
 }
 
-export class NewExpression {
+export class NewExpression extends Expression {
 	constructor(constructor, args = null) {
 		this.type = 'NewExpression';
 		this.constructor = constructor;
@@ -98,24 +112,28 @@ export class NewExpression {
 	}
 }
 
-export class CallExpression {
+export class CallExpression extends Expression {
 	constructor(constructor, args = null) {
 		this.type = 'CallExpression';
-		this.constructor = constructor;
+		this.callee = constructor;
 		this.arguments = args;
 	}
 }
 
-export class MemberExpression {
+export class MemberExpression extends Expression {
 	constructor(base, prop, computed = true) {
 		this.type = 'MemberExpression';
 		this.base = base;
 		this.property = prop;
 		this.computed = computed;
 	}
+
+	isValidSimpleAssignmentTarget() {
+		return true;
+	}
 }
 
-export class TaggedTemplateExpression {
+export class TaggedTemplateExpression extends Expression {
 	constructor(tag, template) {
 		this.type = 'TaggedTemplateExpression';
 		this.tag = tag;
@@ -130,7 +148,7 @@ export class SpreadExpression {
 	}
 }
 
-export class PostfixExpression {
+export class PostfixExpression extends Expression {
 	constructor(expr, operator) {
 		this.type = 'PostfixExpression';
 		this.operand = expr;
@@ -138,7 +156,7 @@ export class PostfixExpression {
 	}
 }
 
-export class UnaryExpression {
+export class UnaryExpression extends Expression {
 	constructor(expr, operator) {
 		this.type = 'UnaryExpression';
 		this.operand = expr;
@@ -146,7 +164,7 @@ export class UnaryExpression {
 	}
 }
 
-export class BinaryExpression {
+export class BinaryExpression extends Expression {
 	constructor(operator, left, right) {
 		this.type = 'BinaryExpression';
 		this.operator = operator;
@@ -155,7 +173,7 @@ export class BinaryExpression {
 	}
 }
 
-export class ConditionalExpression {
+export class ConditionalExpression extends Expression {
 	constructor(test, trueExpr, falseExpr) {
 		this.type = 'ConditionalExpression';
 		this.test = test;

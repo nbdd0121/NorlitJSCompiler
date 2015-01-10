@@ -1,8 +1,14 @@
 import Context from 'syntax/Context';
 import Scanner from 'syntax/Scanner';
 import Parser from 'syntax/Parser';
+import TreeValidator from 'syntax/TreeValidator';
 import Statistics from 'util/Statistics';
 import Stream from 'util/Stream';
+import Source from 'source/Source';
+
+import CodeGenerator from 'transpiler/CodeGenerator';
+import Transpiler from 'transpiler/Transpiler';
+
 const fs = require("fs");
 
 if (process.argv <= 1) {
@@ -11,10 +17,16 @@ if (process.argv <= 1) {
 const file = fs.readFileSync(process.argv[1]).toString();
 
 function testCase() {
+	const source = new Source(process.argv[1], file);
 	const ctx = new Context();
-	const syn = new Scanner(ctx, file);
+	const syn = new Scanner(ctx, source);
 	const psr = new Parser(ctx, syn);
-	return psr.parseModule();
+	const module = psr.parseModule();
+	new TreeValidator(ctx).visitModule(module);
+	//new Transpiler().visitModule(module);
+	//console.log(JSON.stringify(module, null, 2));
+	//console.log(new CodeGenerator().visitModule(module));
+	return module;
 }
 
 function time(testcase) {
@@ -33,9 +45,7 @@ function runTestCase(testcase, num) {
 	console.log(`Average time for running ${num} cases is ${meanTime.toFixed(3)} ms ± ${(2 * stdev).toFixed(3)}ms`);
 }
 
-debugger;
 const result = time(testCase);
-debugger;
 console.log(JSON.stringify(result.value, null, 2));
 console.log('Time: ' + result.time + 'ms');
-runTestCase(testCase, 100);
+//runTestCase(testCase, 100);

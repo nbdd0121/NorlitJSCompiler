@@ -1,7 +1,14 @@
 import Unicode from 'syntax/unicode/Unicode';
 import Context from 'syntax/Context';
 import Assertion from 'util/Assertion';
-import Token from 'syntax/tree/Token';
+import {
+	Comment,
+	Token,
+	NumberLiteral,
+	StringLiteral,
+	Identifier
+}
+from 'syntax/tree/Token';
 
 const strictReserved = {
 	implements: true,
@@ -55,9 +62,10 @@ class Scanner {
 	constructor(context, source) {
 		this.context = context;
 		this.source = source;
+		this.content = source.content;
 		this.pointer = 0;
 
-		this.tokenStart = undefined;
+		this.tokenStart = null;
 
 		this._lineBefore = false;
 		this._leadingComments = null;
@@ -146,9 +154,9 @@ class Scanner {
 
 	_next(len = 1) {
 		if (len == 1) {
-			return this.source[this.pointer++] || '';
+			return this.content[this.pointer++] || '';
 		}
-		const ret = this.source.substring(this.pointer, this.pointer + len);
+		const ret = this.content.substring(this.pointer, this.pointer + len);
 		this.pointer += len;
 		return ret;
 	}
@@ -162,10 +170,10 @@ class Scanner {
 	}
 
 	_lookahead(len = 1) {
-		if (len == 1) {
-			return this.source[this.pointer] || '';
+		if (len === 1) {
+			return this.content[this.pointer] || '';
 		}
-		return this.source.substring(this.pointer, this.pointer + len) || '';
+		return this.content.substring(this.pointer, this.pointer + len) || '';
 	}
 
 	_expect(seq) {
@@ -179,22 +187,20 @@ class Scanner {
 
 	_end() {
 		const ret = [this.tokenStart, this.pointer];
-		this.tokenStart = undefined;
+		this.tokenStart = null;
 		return ret;
 	}
 
 	_wrap(unit) {
 		const range = this._end();
 		unit.range = range;
-		if (unit instanceof Token) {
-			if (this._lineBefore) {
-				unit.lineBefore = true;
-				this._lineBefore = false;
-			}
-			if (this._leadingComments) {
-				unit.leadingComments = this._leadingComments;
-				this._leadingComments = null;
-			}
+		if (this._lineBefore) {
+			unit.lineBefore = true;
+			this._lineBefore = false;
+		}
+		if (this._leadingComments) {
+			unit.leadingComments = this._leadingComments;
+			this._leadingComments = null;
 		}
 		return unit;
 	}
@@ -208,34 +214,20 @@ class Scanner {
 		const err = new SyntaxError(msg);
 		err.range = range;
 		err.source = this;
-		this.context.error(err);
+		this.context.error(err, this.source.createRange(...range));
 	}
 
-	_pushComment(comment) {
+	_pushComment(type, comment) {
 		if (!this._leadingComments) {
 			this._leadingComments = [];
 		}
-		this._leadingComments.push(comment);
+		this._leadingComments.push(new Comment(this._end(), type, comment));
 	}
 
 	/* Helper used by syntax/Context */
 
-	getPositionFromIndex(pos) {
-		const prevStr = this.source.substring(0, pos);
-		const matches = prevStr.match(/\r\n|[\r\n\u2028\u2029]/g);
-		const line = matches ? matches.length + 1 : 1;
-		const column = prevStr.replace(/[^]*(\r\n|[\r\n\u2028\u2029])/, '').length;
-		return [line, column];
-	}
-
-	getLineEndByStart(pos) {
-		const regex = /\r\n|[\r\n\u2028\u2029]/g;
-		const src = this.source.substring(pos);
-		return regex.exec(src) ? regex.lastIndex + pos - 1 : src.length + pos;
-	}
-
 	rawFromRange(range) {
-		return this.source.substring(...range);
+		return this.content.substring(...range);
 	}
 
 	/* Comments ES6 11.4 */
@@ -251,7 +243,7 @@ class Scanner {
 			}
 		}
 		if (this.processComments) {
-			this._pushComment(this._wrap(new Comment('Line', this.source.substring(this.tokenStart + 2, this.pointer))));
+			this._pushComment('LineComment', this.content.substring(this.tokenStart + 2, this.pointer));
 		}
 	}
 
@@ -272,7 +264,7 @@ class Scanner {
 			}
 		}
 		if (this.processComments) {
-			this._pushComment(this._wrap(new Comment('Block', this.source.substring(this.tokenStart + 2, this.pointer - 2))));
+			this._pushComment('BlockComment', this.content.substring(this.tokenStart + 2, this.pointer - 2));
 		}
 	}
 
@@ -287,7 +279,7 @@ class Scanner {
 			}
 		}
 		if (this.processComments) {
-			this._pushComment(this._wrap(new Comment('HTMLOpen', this.source.substring(this.tokenStart + 4, this.pointer))));
+			this._pushComment('HTMLOpenComment', this.content.substring(this.tokenStart + 4, this.pointer));
 		}
 	}
 
@@ -302,7 +294,7 @@ class Scanner {
 			}
 		}
 		if (this.processComments) {
-			this._pushComment(this._wrap(new Comment('HTMLClose', this.source.substring(this.tokenStart + 3, this.pointer))));
+			this._pushComment('HTMLCloseComment', this.content.substring(this.tokenStart + 3, this.pointer));
 		}
 	}
 
@@ -583,82 +575,78 @@ class Scanner {
 				break;
 			}
 		}
-		const token = this._createWrappedToken('Identifier');
-		token.value = id;
-		return token;
+		return this._wrap(new Identifier(id));
+	}
+
+	_scanDecimal() {
+		let decimal = "";
+		while (true) {
+			const next = this._next();
+			if (next >= '0' && next <= '9') {
+				decimal += next;
+			} else {
+				this._pushback();
+				return decimal;
+			}
+		}
+	}
+
+	_scanExp() {
+		Assertion.assert(this._next().toLowerCase() == 'e');
+		const next = this._lookahead();
+		let sign = "+";
+		if (next == '+' || next == '-') {
+			sign = this._next();
+		}
+		let expPart = "";
+		while (true) {
+			const next = this._next();
+			if (next >= '0' && next <= '9') {
+				expPart += next;
+			} else {
+				break;
+			}
+		}
+		this._pushback();
+		if (!expPart.length) {
+			this._throw('Expected +, - or digits after the exponential mark');
+		}
+		return 'e' + sign + expPart;
 	}
 
 	/* Numeric Literals 11.8.3 */
 	nextDecimal() {
-		const decimal = () => {
-			let decimal = "";
-			while (true) {
-				const next = this._next();
-				if (next >= '0' && next <= '9') {
-					decimal += next;
-				} else {
-					this._pushback();
-					return decimal;
-				}
-			}
-		}
-
-		const exp = () => {
-			Assertion.assert(this._next().toLowerCase() == 'e');
-			const next = this._lookahead();
-			let sign = "+";
-			if (next == '+' || next == '-') {
-				sign = this._next();
-			}
-			let expPart = "";
-			while (true) {
-				const next = this._next();
-				if (next >= '0' && next <= '9') {
-					expPart += next;
-				} else {
-					break;
-				}
-			}
-			this._pushback();
-			if (!expPart.length) {
-				this._throw('Expected +, - or digits after the exponential mark');
-			}
-			return 'e' + sign + expPart;
-		}
-
 		this._start();
-		let raw = decimal();
+		let raw = this._scanDecimal();
 		if (raw) {
 			const next = this._lookahead();
-			if (next == '.') {
+			if (next === '.') {
 				this._consume();
 				raw += '.';
-				raw += decimal();
+				raw += this._scanDecimal();
 				const _2 = this._lookahead();
-				if (_2 == 'e' || _2 == 'E') {
-					raw += exp();
+				if (_2 === 'e' || _2 === 'E') {
+					raw += this._scanExp();
 				}
-			} else if (next == 'e' || next == 'E') {
-				raw += exp();
+			} else if (next === 'e' || next === 'E') {
+				raw += this._scanExp();
 			}
 		} else {
 			this._expect('.');
-			const dec = decimal();
+			const dec = this._scanDecimal();
 			Assertion.assert(dec);
 			raw = '.' + dec;
 			const next = this._lookahead();
-			if (next == 'e' || next == 'E') {
-				raw += exp();
+			if (next === 'e' || next === 'E') {
+				raw += this._scanExp();
 			}
 		}
 		const next = this._lookahead();
-		if (next == '\\' || Scanner.isIdentifierStart(next)) {
+		if (next === '\\' || Scanner.isIdentifierStart(next)) {
 			this._throw('Unexpected character after number literal');
 			this.nextIdentifierName();
 		}
-		const token = this._createWrappedToken('Number');
-		token.value = parseFloat(raw);
-		return token;
+		return this._wrap(new NumberLiteral(parseFloat(raw)));
 	}
 
 	nextBinInteger() {
@@ -680,9 +668,7 @@ class Scanner {
 				} else if (error) {
 					this._throw('Unexpected digits in binary number literal');
 				}
-				const token = this._createWrappedToken('Number');
-				token.value = parseInt(raw, 2);
-				return token;
+				return this._wrap(new NumberLiteral(parseInt(raw, 2)));
 			}
 		}
 	}
@@ -706,9 +692,7 @@ class Scanner {
 				} else if (error) {
 					this._throw('Unexpected digits in octal number literal');
 				}
-				const token = this._createWrappedToken('Number');
-				token.value = parseInt(raw, 8);
-				return token;
+				return this._wrap(new NumberLiteral(parseInt(raw, 8)));
 			}
 		}
 	}
@@ -727,9 +711,7 @@ class Scanner {
 					this._throw('Unexpected character after number literal');
 					this.nextIdentifierName();
 				}
-				const token = this._createWrappedToken('Number');
-				token.value = parseInt(raw, 16);
-				return token;
+				return this._wrap(new NumberLiteral(parseInt(raw, 16)));
 			}
 		}
 	}
@@ -753,8 +735,7 @@ class Scanner {
 				} else if (error) {
 					this._throw('Unexpected digits in octal number literal');
 				}
-				const token = this._createWrappedToken('Number');
-				token.value = parseInt(raw, 8);
+				const token = this._wrap(new NumberLiteral(parseInt(raw, 8)));
 				token.strictModeError = "Legacy octal number literal";
 				return token;
 			}
@@ -778,8 +759,7 @@ class Scanner {
 							value += next;
 							break;
 						}
-						const token = this._createWrappedToken('String');
-						token.value = value;
+						const token = this._wrap(new StringLiteral(value));
 						if (oct) {
 							token.strictModeError = 'Octal escape sequence';
 						}
@@ -889,7 +869,7 @@ class Scanner {
 					{
 						this._pushback();
 						this._throw("String literal is not enclosed");
-						const token = this._createWrappedToken('String');
+						const token = this._wrap(new StringLiteral(value));
 						token.value = value;
 						if (oct) {
 							token.strictModeError = 'Octal escape sequence';
@@ -1004,7 +984,7 @@ class Scanner {
 				if (!Scanner.isIdentifierPart(esc)) {
 					this._throw("Illegal identifier part in regexp flags");
 				}
-				flags += this.source.substring(before - 1, this.pointer);
+				flags += this.content.substring(before - 1, this.pointer);
 			} else if (Scanner.isIdentifierPart(next)) {
 				flags += next;
 			} else {
@@ -1061,6 +1041,9 @@ class Scanner {
 		while (true) {
 			const next = this._next();
 			switch (next) {
+				case '':
+					this._throw('Template Literal is not enclosed');
+					break;
 				case '`':
 					this._pushback();
 					return [cooked, raw];
@@ -1160,7 +1143,7 @@ class Scanner {
 									this._pushback();
 									const start = this.pointer;
 									cooked += this.nextUnicodeEscapeSequence();
-									raw += '\\' + this.source.substring(start, this.pointer);
+									raw += '\\' + this.content.substring(start, this.pointer);
 									break;
 								}
 							default:
@@ -1185,13 +1168,6 @@ class Scanner {
 					break;
 			}
 		}
-	}
-}
-
-class Comment {
-	constructor(type, content) {
-		this.type = type;
-		this.content = content;
 	}
 }
 

@@ -10,6 +10,10 @@ export class Module {
 		this.type = 'Module';
 		this.body = body;
 	}
+
+	isStrict() {
+		return true;
+	}
 }
 
 export class ImportDeclaration {

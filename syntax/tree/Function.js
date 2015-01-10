@@ -1,3 +1,8 @@
+import {
+	Expression
+}
+from 'syntax/tree/Expression';
+
 export class FunctionExpression {
 	constructor(generator, name, param, body) {
 		this.type = 'FunctionExpression';
@@ -18,11 +23,15 @@ export class FunctionDeclaration {
 	}
 }
 
-export class ArrowFunction {
+export class ArrowFunction extends Expression {
 	constructor(param, body) {
 		this.type = 'ArrowFunction';
 		this.parameters = param;
 		this.body = body;
+	}
+
+	isFunctionDefinition() {
+		return true;
 	}
 }
 
@@ -55,13 +64,11 @@ export class MethodDefinition {
 	}
 }
 
-export class GeneratorMethod {
-	constructor(name, param, body, computed = false) {
-		this.type = 'GeneratorMethod';
-		this.name = name;
-		this.parameters = param;
-		this.body = body;
-		this.computed = computed;
+export class YieldExpression extends Expression {
+	constructor(expr = null, forEach = false) {
+		this.type = 'YieldExpression';
+		this.expression = expr;
+		this.forEach = forEach;
 	}
 }
 

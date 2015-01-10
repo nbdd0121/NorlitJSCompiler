@@ -30,7 +30,7 @@ export class EmptyStatement {
 export class ExpressionStatement {
 	constructor(expr) {
 		this.type = 'ExpressionStatement';
-		this.expr = expr;
+		this.expression = expr;
 	}
 }
 

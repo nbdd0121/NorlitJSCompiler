@@ -4,17 +4,38 @@ class Context {
 	constructor() {
 
 	}
-	error(err) {
-		debugger;
-		const scanner = err.source;
-		const [lineNum, column] = scanner.getPositionFromIndex(err.range[0]);
-		const lineStart = err.range[0] - column;
-		const lineEnd = scanner.getLineEndByStart(lineStart);
-		const line = scanner.rawFromRange([lineStart, lineEnd]);
-		console.log(err.toString() + ' at Line ' + lineNum + ":" + (column + 1));
-		console.log(`DEBUG: ${scanner.getPositionFromIndex(err.range[1])}`);
-		console.log(line);
-		console.log(StringUtil.repeat(' ', column) + StringUtil.repeat('~', err.range[1] - err.range[0] - 1) + '^');
+	error(err, range) {
+		if (!range) {
+			range = err.source.source.createRange(...err.range);
+		}
+		if (range.start.line === range.end.line) {
+			console.log(`${err} at Line ${range.start.line + 1}:${range.start.column + 1}-${range.end.column + 1}`);
+			console.log(range.source.getLineText(range.start.line));
+			console.log(
+				StringUtil.repeat(' ', range.start.column) +
+				StringUtil.repeat('~', range.end.offset - range.start.offset - 1) + '^'
+			);
+		} else {
+			console.log(`${err} at Line ${range.start.line + 1}:${range.start.column + 1}-${range.end.line}:${range.end.column + 1}`);
+			const endLineNum = range.end.line;
+			/* First Line */
+			{
+				const text = range.source.getLineText(range.start.line);
+				console.log(text);
+				console.log(
+					StringUtil.repeat(' ', range.start.column) +
+					StringUtil.repeat('~', text.length - range.start.column + 1)
+				);
+			}
+			for (let i = range.start.line + 1; i < endLineNum - 1; i++) {
+				const text = range.source.getLineText(i);
+				console.log(text);
+				console.log(StringUtil.repeat('~', text.length + 1));
+			}
+
+			console.log(range.source.getLineText(endLineNum));
+			console.log(StringUtil.repeat('~', range.end.column) + '^');
+		}
 		throw '1 error found. Parsing aborted.';
 	}
 }

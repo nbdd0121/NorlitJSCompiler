@@ -1,6 +1,9 @@
 import Assertion from 'util/Assertion';
 import Scanner from 'syntax/Scanner';
-import Token from 'syntax/tree/Token';
+import {
+	Identifier
+}
+from 'syntax/tree/Token';
 import {
 	ArrayPattern,
 	ObjectPattern,
@@ -60,7 +63,7 @@ import {
 	ClassExpression,
 	ClassDeclaration,
 	MethodDefinition,
-	GeneratorMethod,
+	YieldExpression,
 	GetterDefinition,
 	SetterDefinition
 }
@@ -197,8 +200,7 @@ class Parser {
 		if (this._allowYield || this._strictMode) {
 			this._throw('Yield cannot be used as an identifier');
 		}
-		const id = new Token('Identifier');
-		id.value = 'yield';
+		const id = new Identifier('yield');
 		id.range = this._next().range;
 		return id;
 	}
@@ -214,6 +216,16 @@ class Parser {
 	_backtrace(loc) {
 		this.scanner.pointer = loc;
 		this._buffer = [];
+	}
+
+	_hasLineTerminator() {
+		return this._lookahead().lineBefore;
+	}
+
+	_ensureNoLineTerminator() {
+		if(this._hasLineTerminator()){
+			this._throw('Unexpected line terminator');
+		}
 	}
 
 	/* 12.2 Primary Expression */
@@ -749,7 +761,15 @@ class Parser {
 	parseAssignment(noIn = false) {
 		const peekType = this._peekType();
 		if (this._allowYield && peekType === 'yield') {
-			throw 'TODO: Yield Expression';
+			this._next();
+			if (this._lookahead().lineBefore) {
+				return new YieldExpression();
+			}
+			if (this._consumeIf('*')) {
+				return new YieldExpression(this.parseAssignment(noIn), true);
+			} else {
+				return new YieldExpression(this.parseAssignment(noIn));
+			}
 		} else if ((peekType === 'Identifier' || peekType === 'yield') && this._peekType(2) === '=>') {
 			return this.parseArrowFunction(this._next());
 		}
@@ -1206,38 +1226,28 @@ class Parser {
 				init = this.parseExpression(true);
 			}
 		}
-		switch (init ? this._peekType() : ';') {
-			case ';':
-				{
-					this._consume();
-					const test = this._peekType() === ';' ? null : this.parseExpression();
-					this._expect(';');
-					const inc = this._peekType() === ')' ? null : this.parseExpression();
-					this._expect(')');
-					const body = this.parseStatement();
-					return this._wrap(new ForStatement(inc, test, inc, body));
-				}
-			case 'in':
-				{
-					this._consume();
-					const coll = this.parseExpression();
-					this._expect(')');
-					const body = this.parseStatement();
-					return this._wrap(new ForInStatement(inc, coll, body));
-				}
-			case 'Identifier':
-				{
-					if (this._lookahead().value === 'of') {
-						this._consume();
-						const coll = this.parseExpression();
-						this._expect(')');
-						const body = this.parseStatement();
-						return this._wrap(new ForOfStatement(inc, coll, body));
-					}
-				}
-			default:
-				this._throw('Expected for, for-in, or for-of loop');
+		if (!init || this._peekType() === ';') {
+			this._expect(';');
+			const test = this._peekType() === ';' ? null : this.parseExpression();
+			this._expect(';');
+			const inc = this._peekType() === ')' ? null : this.parseExpression();
+			this._expect(')');
+			const body = this.parseStatement();
+			return this._wrap(new ForStatement(init, test, inc, body));
 		}
+		let next = this._next();
+		if (next.type !== 'in' && next.type !== 'Identifier' && next.type !== 'of') {
+			this._throw('Expected for, for-in, or for-of loop');
+		}
+		if (init instanceof ArrayLiteral) {
+			init = this.parseArrayPattern(true, init);
+		} else if (init instanceof ObjectLiteral) {
+			init = this.parseObjectPattern(true, init);
+		}
+		const coll = this.parseExpression();
+		this._expect(')');
+		const body = this.parseStatement();
+		return this._wrap(new(next.type === 'in' ? ForInStatement : ForOfStatement)(init, coll, body));
 	}
 
 	/* 13.7 The continue Statement */
@@ -1309,19 +1319,18 @@ class Parser {
 			let test = null;
 			switch (this._peekType()) {
 				case 'case':
-					{
-						this._start();
-						this._consume();
-						test = this.parseExpression();
-						break;
-					}
+					this._start();
+					this._consume();
+					test = this.parseExpression();
+					break;
 				case 'default':
-					{
-						defaultDef = true;
-						this._start();
-						this._consume();
-						break;
+					if (defaultDef) {
+						this._throw('Duplicate default clause');
 					}
+					defaultDef = true;
+					this._start();
+					this._consume();
+					break;
 				default:
 					break loop;
 			}
@@ -1403,7 +1412,11 @@ class Parser {
 		}
 		const param = this.parseFormalParameters();
 		this._expect('{');
+		if (isGenerator)
+			this._allowYield = true;
 		const body = this.parseStatementList(true);
+		if (isGenerator)
+			this._allowYield = false;
 		this._expect('}');
 		return this._wrap(new ctor(isGenerator, name, param, body));
 	}
@@ -1427,7 +1440,7 @@ class Parser {
 					const init = this.parseAssignment();
 					parameters.push(this._wrap(new DefaultParameter(target, init)));
 				} else {
-					parameters.push();
+					parameters.push(target);
 				}
 			}
 		} while (this._consumeIf(','));
@@ -1451,6 +1464,7 @@ class Parser {
 		} else {
 			param = [param];
 		}
+		this._ensureNoLineTerminator();
 		this._expect('=>');
 		let body;
 		if (this._consumeIf('{')) {
@@ -1482,7 +1496,9 @@ class Parser {
 			}
 			const param = this.parseFormalParameters();
 			this._expect('{');
+			this._allowYield = true;
 			const body = this.parseStatementList(true);
+			this._allowYield = false;
 			this._expect('}');
 			return this._wrap(new MethodDefinition(true, name, param, body, computed));
 		}
@@ -1575,7 +1591,8 @@ class Parser {
 					}
 					break;
 				default:
-					this._throw('Expected identifier names in class definition');
+					elements.push(this.parseMethodDefinition());
+					break;
 			}
 		}
 	}
