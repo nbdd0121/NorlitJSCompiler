@@ -1,4 +1,4 @@
-import SourceRange from 'source/SourceRange';
+import SourceRange from './SourceRange';
 
 export default class Source {
 	constructor(name, content) {

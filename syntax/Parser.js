@@ -1,9 +1,9 @@
-import Assertion from 'util/Assertion';
-import Scanner from 'syntax/Scanner';
+import Assertion from '../util/Assertion';
+import Scanner from './Scanner';
 import {
 	Identifier
 }
-from 'syntax/tree/Token';
+from './tree/Token';
 import {
 	ArrayPattern,
 	ObjectPattern,
@@ -30,7 +30,7 @@ import {
 	BinaryExpression,
 	ConditionalExpression
 }
-from 'syntax/tree/Expression';
+from './tree/Expression';
 import {
 	BlockStatement,
 	VariableDeclaration,
@@ -55,7 +55,7 @@ import {
 	ExpressionStatement,
 	DirectiveStatement
 }
-from 'syntax/tree/Statement';
+from './tree/Statement';
 import {
 	FunctionExpression,
 	FunctionDeclaration,
@@ -67,7 +67,7 @@ import {
 	GetterDefinition,
 	SetterDefinition
 }
-from 'syntax/tree/Function';
+from './tree/Function';
 import {
 	Script,
 	ImportDeclaration,
@@ -76,7 +76,7 @@ import {
 	ExportDefault,
 	Module
 }
-from 'syntax/tree/Module';
+from './tree/Module';
 
 class Parser {
 	constructor(ctx, scanner) {

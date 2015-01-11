@@ -1,4 +1,4 @@
-import StringUtil from 'util/StringUtil';
+import StringUtil from '../util/StringUtil';
 
 class Context {
 	constructor() {
@@ -9,7 +9,7 @@ class Context {
 			range = err.source.source.createRange(...err.range);
 		}
 		if (range.start.line === range.end.line) {
-			console.log(`${err} at Line ${range.start.line + 1}:${range.start.column + 1}-${range.end.column + 1}`);
+			console.log(`${range.source.name}: Line ${range.start.line + 1}:${range.start.column + 1}-${range.end.column + 1}: ${err}`);
 			console.log(range.source.getLineText(range.start.line));
 			console.log(
 				StringUtil.repeat(' ', range.start.column) +

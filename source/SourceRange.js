@@ -1,4 +1,4 @@
-import SourcePosition from 'source/SourcePosition';
+import SourcePosition from './SourcePosition';
 
 export default class SourceRange {
 	constructor(source, start, end) {

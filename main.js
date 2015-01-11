@@ -1,13 +1,13 @@
-import Context from 'syntax/Context';
-import Scanner from 'syntax/Scanner';
-import Parser from 'syntax/Parser';
-import TreeValidator from 'syntax/TreeValidator';
-import Statistics from 'util/Statistics';
-import Stream from 'util/Stream';
-import Source from 'source/Source';
+import Context from './syntax/Context';
+import Scanner from './syntax/Scanner';
+import Parser from './syntax/Parser';
+import TreeValidator from './syntax/TreeValidator';
+import Statistics from './util/Statistics';
+import Stream from './util/Stream';
+import Source from './source/Source';
 
-import CodeGenerator from 'transpiler/CodeGenerator';
-import Transpiler from 'transpiler/Transpiler';
+import CodeGenerator from './transpiler/CodeGenerator';
+import Transpiler from './transpiler/Transpiler';
 
 const fs = require("fs");
 
@@ -16,6 +16,8 @@ if (process.argv <= 1) {
 }
 const file = fs.readFileSync(process.argv[1]).toString();
 
+debugger;
+
 function testCase() {
 	const source = new Source(process.argv[1], file);
 	const ctx = new Context();
@@ -23,9 +25,6 @@ function testCase() {
 	const psr = new Parser(ctx, syn);
 	const module = psr.parseModule();
 	new TreeValidator(ctx).visitModule(module);
-	//new Transpiler().visitModule(module);
-	//console.log(JSON.stringify(module, null, 2));
-	//console.log(new CodeGenerator().visitModule(module));
 	return module;
 }
 

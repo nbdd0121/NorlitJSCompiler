@@ -6,6 +6,7 @@ if (process.argv.length === 0) {
 	console.log('Argument Required');
 } else {
 	var moduleName = process.argv[0].replace(/\.js$/, '');
+	System.traceurOptions.sourceMaps = true;
 	System.import(moduleName).then(function(index) {
 
 	}).catch(function(err) {

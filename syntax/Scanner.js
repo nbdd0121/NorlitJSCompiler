@@ -1,6 +1,6 @@
-import Unicode from 'syntax/unicode/Unicode';
-import Context from 'syntax/Context';
-import Assertion from 'util/Assertion';
+import Unicode from './unicode/Unicode';
+import Context from './Context';
+import Assertion from '../util/Assertion';
 import {
 	Comment,
 	Token,
@@ -8,7 +8,7 @@ import {
 	StringLiteral,
 	Identifier
 }
-from 'syntax/tree/Token';
+from './tree/Token';
 
 const strictReserved = {
 	implements: true,

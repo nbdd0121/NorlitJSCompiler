@@ -1,7 +1,7 @@
 import {
 	Expression
 }
-from 'syntax/tree/Expression';
+from './Expression';
 
 export class FunctionExpression {
 	constructor(generator, name, param, body) {

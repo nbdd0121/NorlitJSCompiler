@@ -1,4 +1,4 @@
-import NodeVisitor from 'syntax/NodeVisitor';
+import NodeVisitor from './NodeVisitor';
 
 import {
 	ObjectPattern,
@@ -7,7 +7,7 @@ import {
 	SpreadExpression,
 	BinaryExpression
 }
-from 'syntax/tree/Expression';
+from './tree/Expression';
 
 class TreeValidator extends NodeVisitor {
 	constructor(ctx) {

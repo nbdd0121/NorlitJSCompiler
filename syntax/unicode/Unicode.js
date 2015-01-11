@@ -1,4 +1,4 @@
-import {smpIdStart, smpIdContinue, bmpTable} from 'syntax/unicode/CategoryTable';
+import {smpIdStart, smpIdContinue, bmpTable} from './CategoryTable';
 
 const compressMap = "01234567";
 
