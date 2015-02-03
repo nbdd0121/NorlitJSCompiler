@@ -6,8 +6,8 @@ import Statistics from './util/Statistics';
 import Stream from './util/Stream';
 import Source from './source/Source';
 
-import CodeGenerator from './transpiler/CodeGenerator';
-import Transpiler from './transpiler/Transpiler';
+import BytecodeEmitter from './codegen/Bytecode';
+import Generator from './codegen/Generator';
 
 const fs = require("fs");
 
@@ -25,7 +25,9 @@ function testCase() {
 	const psr = new Parser(ctx, syn);
 	const module = psr.parseModule();
 	new TreeValidator(ctx).visitModule(module);
-	return module;
+	const globalEmitter = new BytecodeEmitter();
+	new Generator(globalEmitter).visitModule(module);
+	console.log(globalEmitter.bytecodes.join("\n"));
 }
 
 function time(testcase) {
@@ -45,6 +47,6 @@ function runTestCase(testcase, num) {
 }
 
 const result = time(testCase);
-console.log(JSON.stringify(result.value, null, 2));
+//console.log(JSON.stringify(result.value, null, 2));
 console.log('Time: ' + result.time + 'ms');
 //runTestCase(testCase, 100);

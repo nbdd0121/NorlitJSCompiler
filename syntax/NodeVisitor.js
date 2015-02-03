@@ -64,16 +64,14 @@ class NodeVisitor {
 		throw new Error('CoverInitializedName should not appear in the AST');
 	}
 
-	visitSuperNewExpression(expr) {
-		this._visitArray(expr.arguments);
-	}
+	visitNewTargetExpression(expr) {}
 
 	visitSuperCallExpression(expr) {
 		this._visitArray(expr.arguments);
 	}
 
 	visitSuperPropertyExpression(expr) {
-		throw new Error('TODO');
+		expr.property = this.visitNode(expr.property) || expr.property;
 	}
 
 	visitNewExpression(expr) {
@@ -317,6 +315,10 @@ class NodeVisitor {
 		this._visitArray(method.body);
 	}
 
+	visitScript(script) {
+		this._visitArray(script.body);
+	}
+
 	visitModule(module) {
 		this._visitArray(module.body);
 	}
@@ -369,8 +371,8 @@ class NodeVisitor {
 				return this.visitCoverFormals(node);
 			case 'CoverInitializedName':
 				return this.visitCoverInitializedName(node);
-			case 'SuperNewExpression':
-				return this.visitSuperNewExpression(node);
+			case 'NewTargetExpression':
+				return this.visitNewTargetExpression(node);
 			case 'SuperCallExpression':
 				return this.visitSuperCallExpression(node);
 			case 'SuperPropertyExpression':

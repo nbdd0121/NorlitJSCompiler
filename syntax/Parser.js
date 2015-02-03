@@ -16,7 +16,7 @@ import {
 	CoveredFormals,
 	CoverInitializedName,
 
-	SuperNewExpression,
+	NewTargetExpression,
 	SuperCallExpression,
 	SuperPropertyExpression,
 	NewExpression,
@@ -223,7 +223,7 @@ class Parser {
 	}
 
 	_ensureNoLineTerminator() {
-		if(this._hasLineTerminator()){
+		if (this._hasLineTerminator()) {
 			this._throw('Unexpected line terminator');
 		}
 	}
@@ -423,18 +423,10 @@ class Parser {
 				{
 					this._start();
 					this._consume();
-					if (this._peekType() === 'super') {
-						const _2 = this._lookahead(2);
-						if (_2.type === '(') {
-							/* NewSuper Arguments */
-							this._consume();
-							const args = this.parseArguments();
-							return this._wrap(new SuperNewExpression(args));
-						} else if (_2.type !== '.' && _2.type !== '[') {
-							/* NewSuper */
-							this._consume();
-							return this._wrap(new SuperNewExpression());
-						}
+					if (this._consumeIf('.')) {
+						this._expectIdentifier('target');
+						expr = this._wrap(new NewTargetExpression());
+						break;
 					}
 					const constructor = this.parseLeftHandSide(true);
 					if (this._peekType() !== '(') {

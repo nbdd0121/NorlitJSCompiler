@@ -1,7 +1,25 @@
+import {
+	Statement,
+	StatementList
+}
+from './Statement';
+
 export class Script {
 	constructor(body) {
 		this.type = 'Script';
 		this.body = body;
+	}
+
+	lexicallyDeclaredNames() {
+		return StatementList.topLevelLexicallyDeclaredNames(this.body);
+	}
+
+	varDeclaredNames() {
+		return StatementList.topLevelVarDeclaredNames(this.body);
+	}
+
+	varScopedDeclarations() {
+		return StatementList.topLevelVarScopedDeclarations(this.body);
 	}
 }
 

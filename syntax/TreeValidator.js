@@ -65,11 +65,14 @@ class TreeValidator extends NodeVisitor {
 	}
 
 	visitCoverFormals(cover) {
+		if (cover.body.length === 0) {
+			throw new SyntaxError('Unexpected cover formals as parenthesis expression');
+		}
 		let expr = null;
 		for (let i = 0; i < cover.body.length; i++) {
 			const element = cover.body[i];
 			if (element instanceof SpreadExpression) {
-				throw 'Unexpected spread expression in cover formals';
+				throw new SyntaxError('Unexpected spread expression in cover formals');
 			}
 			if (expr) {
 				const comma = new BinaryExpression(',', expr, element);

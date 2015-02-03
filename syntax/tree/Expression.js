@@ -78,10 +78,9 @@ export class CoverInitializedName {
 
 /* LeftHandSideExpression */
 
-export class SuperNewExpression extends Expression {
+export class NewTargetExpression extends Expression {
 	constructor(args = null) {
-		this.type = 'SuperNewExpression';
-		this.arguments = args;
+		this.type = 'NewTargetExpression';
 	}
 }
 
@@ -94,7 +93,7 @@ export class SuperCallExpression extends Expression {
 
 export class SuperPropertyExpression extends Expression {
 	constructor(prop, computed = true) {
-		this.type = 'SuperMemberExpression';
+		this.type = 'SuperPropertyExpression';
 		this.property = prop;
 		this.computed = computed;
 	}
