@@ -463,10 +463,10 @@ var minifyString = require("../stringify/string");
 function isIdentifierName(str) {
     if (!str.length)
         return false;
-    if (!NorlitJSCompiler.Lex.isIdentifierStart(str))
+    if (!NorlitJSCompiler.Lex.isIdentifierStart(str[0]))
         return false;
     for (var i = 1; i < str.length; i++)
-        if (!NorlitJSCompiler.Lex.isIdentifierPart(str))
+        if (!NorlitJSCompiler.Lex.isIdentifierPart(str[i]))
             return false;
     return true;
 }
